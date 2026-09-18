@@ -1,0 +1,16 @@
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.git
+.gitignore
+.env
+*.md
+training/
+tests/
+requirements-dev.txt
+.ruff_cache
+.pytest_cache
+.mypy_cache
+*.tar.gz
+*.onnx.tmp

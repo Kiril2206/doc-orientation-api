@@ -1,0 +1,14 @@
+# FastAPI & Server
+fastapi>=0.104.0,<1.0.0
+uvicorn[standard]>=0.24.0,<1.0.0
+python-multipart>=0.0.6
+
+# ML Inference
+onnxruntime>=1.16.0,<2.0.0
+
+# Image Processing
+Pillow>=10.0.0,<11.0.0
+numpy>=1.24.0,<2.0.0
+
+# Configuration
+pydantic-settings>=2.0.0,<3.0.0
