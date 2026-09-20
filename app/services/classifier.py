@@ -12,6 +12,8 @@ import numpy as np
 import onnxruntime as ort
 from PIL import Image
 
+from app.services.text_verifier import TextOrientationVerifier
+
 logger = logging.getLogger(__name__)
 
 # ImageNet normalization constants
@@ -19,7 +21,9 @@ IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 # Class index → rotation in degrees that was applied to the image
-ORIENTATION_CLASSES = {0: 0, 1: 90, 2: 180, 3: 270}
+# Checkpoints were trained on PIL counterclockwise rotations.
+# Expose orientation and correction consistently in CLOCKWISE degrees.
+ORIENTATION_CLASSES = {0: 0, 1: 270, 2: 180, 3: 90}
 
 # To correct the image, we rotate by the inverse
 CORRECTION_MAP = {0: 0, 90: 270, 180: 180, 270: 90}
@@ -44,7 +48,11 @@ class OrientationClassifier:
         print(result.predicted_orientation, result.confidence)
     """
 
-    def __init__(self, model_path: str | Path) -> None:
+    def __init__(
+        self,
+        model_path: str | Path,
+        text_verifier: TextOrientationVerifier | None = None,
+    ) -> None:
         """Load the ONNX model.
 
         Args:
@@ -84,6 +92,9 @@ class OrientationClassifier:
             self._input_name,
             self._output_name,
         )
+
+        # Stage 2: OCR text orientation verifier (OSD)
+        self._text_verifier = text_verifier if text_verifier is not None else TextOrientationVerifier()
 
     def preprocess(self, image: Image.Image) -> np.ndarray:
         """Preprocess a PIL Image for model input.
@@ -142,6 +153,22 @@ class OrientationClassifier:
 
         predicted_orientation = ORIENTATION_CLASSES[predicted_class]
         correction_rotation = CORRECTION_MAP[predicted_orientation]
+
+        # Stage 2: OCR-based text orientation verification
+        # Disambiguates cases where CNN is confused by unusual layout (e.g. passports, certificates)
+        verifier = getattr(self, "_text_verifier", None)
+        if verifier is not None and verifier.is_available:
+            text_orientation = verifier.detect_orientation(image)
+            if text_orientation is not None and text_orientation != predicted_orientation:
+                logger.info(
+                    "Text OSD override: CNN predicted %d° (conf=%.3f), text OSD detected %d°",
+                    predicted_orientation,
+                    confidence,
+                    text_orientation,
+                )
+                predicted_orientation = text_orientation
+                correction_rotation = CORRECTION_MAP[predicted_orientation]
+                confidence = 0.999
 
         logger.info(
             "Prediction: orientation=%d°, confidence=%.3f, correction=%d°",

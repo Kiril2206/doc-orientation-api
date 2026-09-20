@@ -19,7 +19,8 @@ class Settings(BaseSettings):
 
     # Image constraints
     max_image_size_mb: int = 10
-    allowed_extensions: set[str] = {".jpg", ".jpeg", ".png", ".tiff", ".tif", ".bmp", ".webp"}
+    max_pdf_pages: int = 100
+    allowed_extensions: set[str] = {".jpg", ".jpeg", ".png", ".tiff", ".tif", ".bmp", ".webp", ".pdf"}
 
     # Server
     host: str = "0.0.0.0"

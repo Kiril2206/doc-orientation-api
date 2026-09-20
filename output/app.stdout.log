@@ -1,0 +1,13 @@
+warning: The `fitz` API is deprecated and will be removed in future. Use `import pymupdf` instead.
+2026-09-18 23:24:44 | INFO     |  | app.main | Starting Document Orientation API v1.0.0
+2026-09-18 23:24:44 | INFO     |  | app.services.classifier | Loading ONNX model from C:\Users\kiril\.gemini\antigravity\scratch\doc-orientation-api\model\orientation_model.onnx
+2026-09-18 23:24:44 | INFO     |  | app.services.classifier | Model loaded successfully (42.6 MB). Input: input, Output: output
+2026-09-18 23:24:44 | INFO     |  | app.main | Model loaded successfully from C:\Users\kiril\.gemini\antigravity\scratch\doc-orientation-api\model\orientation_model.onnx
+2026-09-18 23:25:07 | INFO     | dc0393458892 | app.api.routes | Processing file: sample.png (14.5 KB)
+2026-09-18 23:25:07 | INFO     | dc0393458892 | app.services.classifier | Prediction: orientation=90°, confidence=0.460, correction=270°
+2026-09-18 23:25:07 | INFO     | dc0393458892 | app.api.routes | Response: orientation=90°, correction=270°, confidence=0.460, output_size=66.9 KB
+2026-09-18 23:25:07 | INFO     | 6d9bca600e9f | app.api.routes | Processing file: sample.pdf (15.2 KB)
+2026-09-18 23:25:07 | INFO     | 6d9bca600e9f | app.services.classifier | Prediction: orientation=180°, confidence=0.826, correction=180°
+2026-09-18 23:25:07 | INFO     | 6d9bca600e9f | app.services.classifier | Prediction: orientation=270°, confidence=0.510, correction=90°
+2026-09-18 23:25:07 | INFO     | 6d9bca600e9f | app.services.classifier | Prediction: orientation=0°, confidence=0.930, correction=0°
+2026-09-18 23:25:07 | INFO     | 6d9bca600e9f | app.services.classifier | Prediction: orientation=270°, confidence=0.669, correction=90°

@@ -7,11 +7,22 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision.models import resnet18, ResNet18_Weights
 from tqdm import tqdm
-from dataset import create_splits
+try:
+    from dataset import create_splits
+except ImportError:
+    from training.dataset import create_splits
+
+try:
+    from export_onnx import export_model
+except ImportError:
+    from training.export_onnx import export_model
 
 def get_args():
     parser = argparse.ArgumentParser(description="Train Document Orientation Classifier")
-    parser.add_argument('--data-source', type=str, default='hf', choices=['hf', 'local'])
+    parser.add_argument('--data-source', default='hf_mixed',
+                        choices=['hf_mixed', 'hf_doclaynet', 'hf_cord', 'hf_rvlcdip', 'hf', 'local'],
+                        help="DocLayNet + CORD by default; see docs/DATASETS.md")
+    parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--data-dir', type=str, default=None)
     parser.add_argument('--num-images', type=int, default=5000)
     parser.add_argument('--epochs', type=int, default=15)
@@ -21,6 +32,10 @@ def get_args():
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
     parser.add_argument('--freeze-epochs', type=int, default=3, help="Number of epochs to freeze early layers")
     parser.add_argument('--patience', type=int, default=5, help="Early stopping patience")
+    parser.add_argument('--pretrained', action='store_true', default=True, help="Use ImageNet pre-trained weights for transfer learning")
+    parser.add_argument('--no-pretrained', dest='pretrained', action='store_false', help="Train from scratch without pre-trained weights")
+    parser.add_argument('--export-onnx', action='store_true', help="Automatically export best model to ONNX after training")
+    parser.add_argument('--onnx-output-path', type=str, default=os.path.join('model', 'orientation_model.onnx'), help="Destination path for ONNX export")
     return parser.parse_args()
 
 def set_parameter_requires_grad(model, layers, requires_grad=False):
@@ -31,6 +46,7 @@ def set_parameter_requires_grad(model, layers, requires_grad=False):
 
 def main():
     args = get_args()
+    torch.manual_seed(args.seed)
     os.makedirs(args.output_dir, exist_ok=True)
     
     device = torch.device(args.device)
@@ -38,25 +54,40 @@ def main():
     
     # Load data
     print("Preparing datasets...")
-    train_ds, val_ds, _ = create_splits(
+    train_ds, val_ds = create_splits(
         source=args.data_source, 
         data_dir=args.data_dir, 
-        num_images=args.num_images
+        num_images=args.num_images,
+        seed=args.seed,
+        splits=("train", "validation"),
     )
     
     # We use num_workers=0 to avoid multiprocessing issues on some Windows systems unless specified
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=0)
     
+    manifest = dict(vars(args))
+    manifest["split_sizes"] = {"train": len(train_ds), "validation": len(val_ds)}
+    manifest["label_rotation"] = "counterclockwise"
+    with open(os.path.join(args.output_dir, "training_config.json"), "w") as f:
+        json.dump(manifest, f, indent=2)
+
     # Model
-    model = resnet18(weights=ResNet18_Weights.DEFAULT)
+    if args.pretrained:
+        print("Using ResNet-18 with ImageNet pre-trained weights for transfer learning...")
+        model = resnet18(weights=ResNet18_Weights.DEFAULT)
+    else:
+        print("Using ResNet-18 initialized from scratch (random weights)...")
+        model = resnet18(weights=None)
+
     num_ftrs = model.fc.in_features
     model.fc = nn.Linear(num_ftrs, 4)
     model = model.to(device)
     
-    # Early layers to freeze initially
+    # Early layers to freeze initially (only for transfer learning)
     early_layers = ['conv1', 'bn1', 'layer1', 'layer2']
-    set_parameter_requires_grad(model, early_layers, requires_grad=False)
+    if args.pretrained and args.freeze_epochs > 0:
+        set_parameter_requires_grad(model, early_layers, requires_grad=False)
     
     # Optimizer & Scheduler & Loss
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
@@ -67,12 +98,13 @@ def main():
     
     best_val_acc = 0.0
     epochs_no_improve = 0
-    
+    best_model_path = os.path.join(args.output_dir, "best_model.pth")
+
     for epoch in range(args.epochs):
         print(f"\nEpoch {epoch+1}/{args.epochs}")
         
-        # Unfreeze after freeze_epochs
-        if epoch == args.freeze_epochs:
+        # Unfreeze after freeze_epochs (only when using pre-trained weights)
+        if args.pretrained and epoch == args.freeze_epochs:
             print("Unfreezing all layers...")
             set_parameter_requires_grad(model, early_layers, requires_grad=True)
             # Re-initialize optimizer to include newly unfreezed parameters
@@ -147,8 +179,13 @@ def main():
         
     print("\n--- Training Summary ---")
     print(f"Best Validation Accuracy: {best_val_acc:.4f}")
-    print(f"Model saved to: {os.path.join(args.output_dir, 'best_model.pth')}")
+    print(f"Model saved to: {best_model_path}")
     print(f"History saved to: {history_path}")
+
+    # Auto-export to ONNX if requested
+    if args.export_onnx and os.path.exists(best_model_path):
+        print("\n--- Exporting to ONNX ---")
+        export_model(best_model_path, args.onnx_output_path)
 
 if __name__ == "__main__":
     main()

@@ -8,13 +8,17 @@ from torchvision.models import resnet18
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 import matplotlib.pyplot as plt
 import seaborn as sns
-from dataset import create_splits
+try:
+    from dataset import create_splits
+except ImportError:
+    from training.dataset import create_splits
 from tqdm import tqdm
 
 def get_args():
     parser = argparse.ArgumentParser(description="Evaluate Document Orientation Classifier")
     parser.add_argument('--model-path', type=str, required=True, help="Path to best_model.pth")
-    parser.add_argument('--data-source', type=str, default='hf', choices=['hf', 'local'])
+    parser.add_argument('--data-source', type=str, default='hf_mixed', choices=['hf_mixed', 'hf_doclaynet', 'hf_cord', 'hf_rvlcdip', 'hf', 'local'])
+    parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--data-dir', type=str, default=None)
     parser.add_argument('--num-images', type=int, default=5000)
     parser.add_argument('--batch-size', type=int, default=32)
@@ -31,10 +35,12 @@ def main():
     
     # Load data
     print("Preparing test dataset...")
-    _, _, test_ds = create_splits(
+    (test_ds,) = create_splits(
         source=args.data_source, 
         data_dir=args.data_dir, 
-        num_images=args.num_images
+        num_images=args.num_images,
+        seed=args.seed,
+        splits=("test",),
     )
     
     test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, num_workers=0)

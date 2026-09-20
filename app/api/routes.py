@@ -2,14 +2,16 @@
 
 import logging
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import Response, FileResponse
 
 from app.core.config import get_settings
 from app.core.logging import generate_request_id, request_id_ctx
-from app.models.schemas import ErrorResponse, HealthResponse, OrientationResult
+from app.models.schemas import ErrorResponse, HealthResponse
 from app.services.classifier import OrientationClassifier
+from app.services.pdf_processing import correct_pdf
 from app.services.image_processing import (
     get_media_type,
     get_output_format,
@@ -26,7 +28,7 @@ router = APIRouter()
 _classifier: OrientationClassifier | None = None
 
 
-def set_classifier(classifier: OrientationClassifier) -> None:
+def set_classifier(classifier: OrientationClassifier | None) -> None:
     """Set the global classifier instance (called during app startup)."""
     global _classifier
     _classifier = classifier
@@ -36,10 +38,13 @@ def get_classifier() -> OrientationClassifier:
     """Get the global classifier instance.
 
     Raises:
-        RuntimeError: If the classifier has not been initialized.
+        HTTPException(503): If the classifier has not been initialized (model not loaded/trained).
     """
     if _classifier is None:
-        raise RuntimeError("Classifier not initialized. Is the model loaded?")
+        raise HTTPException(
+            status_code=503,
+            detail="Model is not loaded or weights have not been trained yet. Please train the model and place orientation_model.onnx in the model/ directory.",
+        )
     return _classifier
 
 
@@ -63,7 +68,7 @@ async def health_check() -> HealthResponse:
     "/correct-orientation",
     summary="Correct document orientation",
     description=(
-        "Upload a document image and receive the same image rotated to upright (0°) orientation. "
+        "Upload an image or PDF and receive a corrected image or PDF. Angles are clockwise. "
         "The response includes orientation metadata in the headers:\n"
         "- `X-Original-Orientation`: detected orientation in degrees\n"
         "- `X-Rotation-Applied`: rotation applied to correct the image\n"
@@ -71,30 +76,25 @@ async def health_check() -> HealthResponse:
     ),
     responses={
         200: {
-            "content": {"image/jpeg": {}, "image/png": {}},
-            "description": "Corrected image with orientation metadata in headers.",
+            "content": {"image/jpeg": {}, "image/png": {}, "application/pdf": {}},
+            "description": "Corrected image or PDF with orientation metadata in headers.",
         },
         400: {"model": ErrorResponse, "description": "Invalid input (bad file type, corrupt image, etc.)"},
         413: {"model": ErrorResponse, "description": "File too large"},
+        503: {"model": ErrorResponse, "description": "Model weights not loaded or trained yet"},
         500: {"model": ErrorResponse, "description": "Internal server error"},
     },
 )
 async def correct_orientation(
     file: UploadFile = File(
         ...,
-        description="Document image file (JPEG, PNG, TIFF, BMP, or WEBP). Max 10 MB.",
+        description="Document image file (JPEG, PNG, TIFF, BMP, WEBP) or PDF. Max 10 MB.",
     ),
 ) -> Response:
-    """Classify document orientation and return the corrected image.
+    """Return a corrected image or an original PDF with per-page rotations.
 
-    The image is classified into one of four orientations (0°, 90°, 180°, 270°)
-    and rotated to upright (0°) if necessary. The corrected image is returned
-    in the same format as the input.
-
-    Orientation metadata is included in response headers:
-    - `X-Original-Orientation`: The detected orientation
-    - `X-Rotation-Applied`: The rotation that was applied
-    - `X-Confidence`: The model's confidence score
+    Angles in response headers are clockwise. For PDFs, angle headers describe
+    the first page; confidence is the minimum across all pages.
     """
     # Set request ID for logging
     req_id = generate_request_id()
@@ -114,7 +114,7 @@ async def correct_orientation(
 
     # --- Read file content ---
     try:
-        content = await file.read()
+        content = await file.read(settings.max_image_size_mb * 1024 * 1024 + 1)
     except Exception as e:
         logger.error("Failed to read uploaded file: %s", e)
         raise HTTPException(status_code=400, detail="Failed to read uploaded file.") from e
@@ -138,7 +138,29 @@ async def correct_orientation(
         len(content) / 1024,
     )
 
-    # --- Load image ---
+    # Classify page previews and update the original PDF page rotations.
+    if ext == ".pdf":
+        try:
+            output, results = correct_pdf(content, classifier, settings.max_pdf_pages)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            logger.exception("PDF processing failed")
+            raise HTTPException(status_code=500, detail="PDF processing failed.") from exc
+        return Response(
+            content=output,
+            media_type="application/pdf",
+            headers={
+                "X-Original-Orientation": str(results[0].predicted_orientation),
+                "X-Rotation-Applied": str(results[0].correction_rotation),
+                "X-Confidence": f"{min(r.confidence for r in results):.4f}",
+                "X-Page-Count": str(len(results)),
+                "X-Request-Id": req_id,
+                "Content-Disposition": "attachment; filename*=UTF-8''" + quote("corrected_" + filename),
+            },
+        )
+
+    # ===== Image handling =====
     try:
         image = load_image(content)
     except ValueError as e:
@@ -179,6 +201,11 @@ async def correct_orientation(
             "X-Rotation-Applied": str(result.correction_rotation),
             "X-Confidence": f"{result.confidence:.4f}",
             "X-Request-Id": req_id,
-            "Content-Disposition": f'inline; filename="corrected_{filename}"',
+            "Content-Disposition": "attachment; filename*=UTF-8''" + quote("corrected_" + filename),
         },
     )
+
+
+@router.get("/", include_in_schema=False)
+async def homepage():
+    return FileResponse(Path(__file__).resolve().parents[1] / "static" / "index.html")

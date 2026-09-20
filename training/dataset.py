@@ -1,232 +1,228 @@
+"""RGB document orientation data with published splits and bounded memory."""
+import hashlib
+import io
 import os
-import glob
+import ssl
+import threading
+import time
+from contextlib import contextmanager
+from functools import lru_cache
+import random
 from pathlib import Path
-from typing import Optional, List, Tuple, Union, Callable
-from PIL import Image
-import torch
-from torch.utils.data import Dataset, random_split
-from torchvision import transforms
-from datasets import load_dataset
 
-class AddGaussianNoise(object):
-    def __init__(self, mean=0., std=1.):
-        self.std = std
-        self.mean = mean
-        
+import torch
+from PIL import Image, ImageOps
+from torch.utils.data import Dataset
+from torchvision import transforms
+from tqdm import tqdm
+
+DOCLAYNET_REPO = "docling-project/DocLayNet-v1.2"
+CORD_REPO = "naver-clova-ix/cord-v2"
+SOURCES = ("hf_mixed", "hf_doclaynet", "hf_cord", "hf_rvlcdip", "hf", "local")
+SPLITS = ("train", "validation", "test")
+
+
+class AddGaussianNoise:
+    def __init__(self, mean=0.0, std=0.05):
+        self.mean, self.std = mean, std
+
     def __call__(self, tensor):
-        return tensor + torch.randn(tensor.size()) * self.std + self.mean
-    
-    def __repr__(self):
-        return self.__class__.__name__ + f'(mean={self.mean}, std={self.std})'
+        return tensor + torch.randn_like(tensor) * self.std + self.mean
+
+
+def _preview(image):
+    return ImageOps.exif_transpose(image).convert("RGB").resize(
+        (224, 224), Image.Resampling.BILINEAR
+    )
+
+
+@lru_cache(maxsize=1)
+def _configure_windows_tls():
+    if os.name == "nt":
+        import httpx
+        import huggingface_hub
+        if hasattr(huggingface_hub, "set_client_factory"):
+            huggingface_hub.set_client_factory(
+                lambda: httpx.Client(verify=ssl.create_default_context(), follow_redirects=True)
+            )
+
+
+@contextmanager
+def _loading_progress(description, total, report_interval=15):
+    """Report slow network reads even while no new page has arrived."""
+    stopped = threading.Event()
+    started = time.monotonic()
+    with tqdm(total=total, desc=description, unit="page") as progress:
+        def report_wait():
+            previous_count = progress.n
+            while not stopped.wait(report_interval):
+                if progress.n == previous_count:
+                    tqdm.write(
+                        f"{description}: waiting for data ({progress.n}/{total} pages, "
+                        f"{time.monotonic() - started:.0f}s elapsed). "
+                        "File resolution is complete before page downloads finish."
+                    )
+                previous_count = progress.n
+
+        reporter = threading.Thread(target=report_wait, daemon=True)
+        reporter.start()
+        try:
+            yield progress
+        finally:
+            stopped.set()
+            reporter.join()
+
+
+def _load_hf(repo, split, limit, seed=42):
+    from datasets import Image as HFImage
+    from datasets import load_dataset
+    if limit <= 0:
+        return
+    _configure_windows_tls()
+    description = f"{repo.rsplit('/', 1)[-1]}/{split}"
+    print(f"Loading {description}: up to {limit} image pages (no PDF payloads).", flush=True)
+    with _loading_progress(description, limit) as progress:
+        try:
+            # Project at the Parquet reader, BEFORE downloading/decoding rows.
+            # select_columns() on an iterable drops columns only after reading them.
+            ds = load_dataset(
+                repo, split=split, streaming=True, columns=["image"], batch_size=8
+            )
+            ds = ds.cast_column("image", HFImage(decode=False))
+            ds = ds.shuffle(seed=seed, buffer_size=min(64, limit))
+            for count, item in enumerate(ds, start=1):
+                raw = item["image"]
+                if isinstance(raw, Image.Image):
+                    preview = _preview(raw)
+                else:
+                    source = io.BytesIO(raw["bytes"]) if raw.get("bytes") is not None else raw["path"]
+                    with Image.open(source) as image:
+                        preview = _preview(image)
+                progress.update(1)
+                yield preview
+                if count >= limit:
+                    return
+        except Exception as exc:
+            raise RuntimeError(f"Could not load {repo}/{split}: {exc}") from exc
+
+
+def _source_images(source, split, limit, seed):
+    if source in ("hf", "hf_mixed"):
+        cord_limit = min(max(1, limit // 5), 800 if split == "train" else 100)
+        streams = [
+            iter(_load_hf(DOCLAYNET_REPO, split, limit - cord_limit, seed)),
+            iter(_load_hf(CORD_REPO, split, cord_limit, seed)),
+        ]
+        while streams:
+            for stream in streams[:]:
+                try:
+                    yield next(stream)
+                except StopIteration:
+                    streams.remove(stream)
+        return
+    repos = {"hf_doclaynet": DOCLAYNET_REPO, "hf_cord": CORD_REPO,
+             "hf_rvlcdip": "dvgodoy/rvl_cdip_mini"}
+    if source not in repos:
+        raise ValueError(f"Unsupported source {source!r}; choose from {SOURCES}")
+    yield from _load_hf(repos[source], split, limit, seed)
+
+
+def _load_local(data_dir, limit, seed=42, split=None):
+    root = Path(data_dir)
+    if not root.is_dir():
+        raise ValueError(f"Document directory does not exist: {root}")
+    extensions = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp", ".pdf"}
+    paths = sorted(p for p in root.rglob("*") if p.suffix.lower() in extensions)
+    random.Random(seed).shuffle(paths)
+    count = 0
+    for path in paths:
+        # Group pages by original file, independent of listing order.
+        key = f"{seed}:{path.relative_to(root).as_posix()}"
+        bucket = int(hashlib.sha256(key.encode()).hexdigest()[:8], 16) % 100
+        assigned = "train" if bucket < 70 else "validation" if bucket < 85 else "test"
+        if split is not None and assigned != split:
+            continue
+        if path.suffix.lower() == ".pdf":
+            import fitz
+            with fitz.open(path) as doc:
+                if doc.needs_pass:
+                    raise ValueError(f"Password-protected training PDF: {path}")
+                for page in doc:
+                    scale = min(150 / 72, 1600 / max(page.rect.width, page.rect.height))
+                    pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale),
+                                         colorspace=fitz.csRGB, alpha=False)
+                    yield _preview(Image.frombytes("RGB", (pix.width, pix.height), pix.samples))
+                    count += 1
+                    if count >= limit:
+                        return
+        else:
+            with Image.open(path) as image:
+                yield _preview(image)
+            count += 1
+            if count >= limit:
+                return
+
 
 class OrientationDataset(Dataset):
+    """Labels 0/1/2/3 represent 0/90/180/270 degrees COUNTERCLOCKWISE.
+
+    Source pages must be upright. Only 224x224 RGB previews are kept in memory.
     """
-    Dataset for document orientation classification.
-    Takes source images (assumed upright), and for each source image,
-    it effectively generates 4 samples rotated at 0, 90, 180, and 270 degrees.
-    Labels: 0: 0 deg, 1: 90 deg, 2: 180 deg, 3: 270 deg.
-    """
-    def __init__(
-        self,
-        source: str = 'hf',
-        data_dir: Optional[str] = None,
-        num_images: int = 5000,
-        is_train: bool = True
-    ):
-        """
-        Args:
-            source: Data source, 'hf' for HuggingFace rvl_cdip, or 'local' for local directory.
-            data_dir: Local directory path if source='local'.
-            num_images: Number of source images to use (resulting in 4 * num_images samples).
-            is_train: Whether this dataset is used for training (applies augmentations).
-        """
+    def __init__(self, source="hf_mixed", data_dir=None, num_images=5000,
+                 is_train=True, images=None, split="train", seed=42):
+        if num_images <= 0:
+            raise ValueError("num_images must be positive.")
         self.is_train = is_train
-        self.images: List[Image.Image] = []
-        
-        if source == 'hf':
-            print(f"Loading {num_images} images from Hugging Face rvl_cdip dataset...")
-            dataset = self._load_hf_dataset()
-            iterator = iter(dataset)
-            for _ in range(num_images):
-                try:
-                    item = next(iterator)
-                    img = item['image']
-                    if not isinstance(img, Image.Image):
-                        import io
-                        img = Image.open(io.BytesIO(img['bytes']))
-                    self.images.append(img.copy())
-                except StopIteration:
-                    break
-        elif source == 'local':
-            if not data_dir:
-                raise ValueError("data_dir must be provided if source is 'local'")
-            print(f"Loading up to {num_images} images from local directory {data_dir}...")
-            image_paths = []
-            for ext in ('*.png', '*.jpg', '*.jpeg', '*.tif', '*.tiff'):
-                image_paths.extend(glob.glob(os.path.join(data_dir, '**', ext), recursive=True))
-            
-            image_paths = image_paths[:num_images]
-            for path in image_paths:
-                try:
-                    img = Image.open(path).copy()
-                    self.images.append(img)
-                except Exception as e:
-                    print(f"Error loading image {path}: {e}")
+        if images is not None:
+            self.images = [_preview(image) for image in images]
         else:
-            raise ValueError(f"Unknown source: {source}")
-            
-        print(f"Loaded {len(self.images)} source images. Total dataset size will be {len(self.images) * 4}.")
-
-        # Base transforms applied to all images
-        # Resize, convert to tensor, normalize with ImageNet stats
+            if source == "local":
+                if not data_dir:
+                    raise ValueError("--data-dir is required for local data.")
+                stream = _load_local(data_dir, num_images, seed, split)
+            else:
+                stream = _source_images(source, split, num_images, seed)
+            self.images = list(stream)
+            print(f"{source}/{split}: {len(self.images)} base pages, {len(self.images)*4} rotations")
+        if not self.images:
+            raise ValueError(f"No usable images for {source}/{split}. Add more upright documents.")
         self.base_transforms = transforms.Compose([
-            transforms.Resize((224, 224)),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
         ])
+        self.aug_transforms = transforms.Compose([
+            transforms.RandomAdjustSharpness(2, p=0.5),
+            transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.2, hue=0.05),
+            transforms.RandomGrayscale(p=0.1),
+        ])
+        self.noise_transform = AddGaussianNoise()
 
-        # Augmentation applied only during training
-        if self.is_train:
-            self.aug_transforms = transforms.Compose([
-                transforms.RandomAdjustSharpness(sharpness_factor=2, p=0.5),
-                transforms.ColorJitter(brightness=0.2, contrast=0.2),
-            ])
-            self.noise_transform = AddGaussianNoise(0., 0.05)
-        else:
-            self.aug_transforms = None
-            self.noise_transform = None
-
-    @staticmethod
-    def _load_hf_dataset():
-        """Load document images from HuggingFace Hub.
-
-        Uses aharley/rvl_cdip (community re-upload in modern Parquet format).
-        Falls back to dvgodoy/rvl_cdip_mini (1% subset) if the full dataset fails.
-        """
-        # Primary: community Parquet re-upload (400k document images)
-        try:
-            print("  Loading aharley/rvl_cdip (Parquet format)...")
-            ds = load_dataset("aharley/rvl_cdip", split="train", streaming=True)
-            print("  Dataset loaded successfully.")
-            return ds
-        except Exception as e:
-            print(f"  aharley/rvl_cdip failed: {e}")
-
-        # Fallback: 1% mini subset
-        try:
-            print("  Trying dvgodoy/rvl_cdip_mini...")
-            ds = load_dataset("dvgodoy/rvl_cdip_mini", split="train", streaming=True)
-            print("  Mini dataset loaded successfully.")
-            return ds
-        except Exception as e:
-            print(f"  dvgodoy/rvl_cdip_mini failed: {e}")
-
-        raise RuntimeError(
-            "Could not load any document dataset from HuggingFace.\n"
-            "Please use --data-source local with a directory of document images."
-        )
-
-    def __len__(self) -> int:
+    def __len__(self):
         return len(self.images) * 4
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int]:
-        img_idx = idx // 4
-        rotation_idx = idx % 4
-        
-        img = self.images[img_idx]
-        
-        # Convert to RGB if grayscale
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-            
-        # Rotate image based on rotation_idx
-        # Labels: 0=0°, 1=90°, 2=180°, 3=270°
-        # Note: PIL.Image.rotate rotates counter-clockwise.
-        # We define label 1 as 90 deg rotation. 
-        if rotation_idx == 1:
-            img = img.rotate(90, expand=True)
-        elif rotation_idx == 2:
-            img = img.rotate(180, expand=True)
-        elif rotation_idx == 3:
-            img = img.rotate(270, expand=True)
-            
-        # Apply transforms
-        if self.is_train and self.aug_transforms:
-            img = self.aug_transforms(img)
-            
-        tensor = self.base_transforms(img)
-        
-        if self.is_train and self.noise_transform:
-            # Apply noise with 50% probability
-            if torch.rand(1).item() < 0.5:
-                tensor = self.noise_transform(tensor)
-                
-        return tensor, rotation_idx
+    def __getitem__(self, idx):
+        image = self.images[idx // 4]
+        label = idx % 4
+        image = image.rotate(label * 90, expand=True)
+        if self.is_train:
+            image = self.aug_transforms(image)
+        tensor = self.base_transforms(image)
+        if self.is_train and torch.rand(1).item() < 0.5:
+            tensor = self.noise_transform(tensor)
+        return tensor, label
 
-def create_splits(
-    source: str = 'hf',
-    data_dir: Optional[str] = None,
-    num_images: int = 5000,
-    seed: int = 42
-) -> Tuple[Dataset, Dataset, Dataset]:
-    """
-    Creates train, validation, and test datasets with a 70/15/15 split.
-    """
-    # Create the full dataset with is_train=True to load the images
-    # We will wrap it to properly handle is_train for val/test splits
-    full_dataset = OrientationDataset(source=source, data_dir=data_dir, num_images=num_images, is_train=True)
-    
-    total_len = len(full_dataset.images)
-    train_len = int(0.7 * total_len)
-    val_len = int(0.15 * total_len)
-    test_len = total_len - train_len - val_len
-    
-    # We need to split the source images, NOT the multiplied dataset
-    # So we split indices of the source images
-    indices = torch.randperm(total_len, generator=torch.Generator().manual_seed(seed)).tolist()
-    
-    train_indices = indices[:train_len]
-    val_indices = indices[train_len:train_len+val_len]
-    test_indices = indices[train_len+val_len:]
-    
-    # Create copies of the dataset for different splits to isolate their images and train flags
-    class SubsetOrientationDataset(Dataset):
-        def __init__(self, parent_dataset: OrientationDataset, subset_indices: List[int], is_train: bool):
-            self.parent = parent_dataset
-            self.subset_indices = subset_indices
-            self.is_train = is_train
-            
-        def __len__(self):
-            return len(self.subset_indices) * 4
-            
-        def __getitem__(self, idx: int):
-            img_idx = self.subset_indices[idx // 4]
-            rotation_idx = idx % 4
-            
-            img = self.parent.images[img_idx]
-            if img.mode != 'RGB':
-                img = img.convert('RGB')
-                
-            if rotation_idx == 1:
-                img = img.rotate(90, expand=True)
-            elif rotation_idx == 2:
-                img = img.rotate(180, expand=True)
-            elif rotation_idx == 3:
-                img = img.rotate(270, expand=True)
-                
-            if self.is_train and self.parent.aug_transforms:
-                img = self.parent.aug_transforms(img)
-                
-            tensor = self.parent.base_transforms(img)
-            
-            if self.is_train and self.parent.noise_transform:
-                if torch.rand(1).item() < 0.5:
-                    tensor = self.parent.noise_transform(tensor)
-                    
-            return tensor, rotation_idx
 
-    train_dataset = SubsetOrientationDataset(full_dataset, train_indices, is_train=True)
-    val_dataset = SubsetOrientationDataset(full_dataset, val_indices, is_train=False)
-    test_dataset = SubsetOrientationDataset(full_dataset, test_indices, is_train=False)
-    
-    return train_dataset, val_dataset, test_dataset
+def create_splits(source="hf_mixed", data_dir=None, num_images=5000, seed=42, splits=SPLITS):
+    """Allocate a 70/15/15 page budget within disjoint published/file splits."""
+    if num_images < 7:
+        raise ValueError("num_images must be at least 7 for three nonempty splits.")
+    budgets = [int(num_images * .70), int(num_images * .15)]
+    budgets.append(num_images - sum(budgets))
+    if not splits or any(split not in SPLITS for split in splits):
+        raise ValueError(f"splits must contain names from {SPLITS}.")
+    split_budgets = dict(zip(SPLITS, budgets))
+    return tuple(
+        OrientationDataset(source=source, data_dir=data_dir, num_images=split_budgets[split],
+                           is_train=split == "train", split=split, seed=seed)
+        for split in splits
+    )

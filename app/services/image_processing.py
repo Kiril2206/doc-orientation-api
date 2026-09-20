@@ -3,10 +3,47 @@
 import io
 import logging
 from pathlib import Path
+from typing import Generator
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 logger = logging.getLogger(__name__)
+
+
+def pdf_to_images(file_content: bytes, dpi: int = 150) -> Generator[Image.Image, None, None]:
+    """Render each page of a PDF as a PIL Image.
+
+    Args:
+        file_content: Raw bytes of the PDF file.
+        dpi: Rendering resolution. 150 DPI is a good balance of quality vs. speed.
+
+    Yields:
+        PIL Image for each page (RGB).
+
+    Raises:
+        ValueError: If the bytes cannot be decoded as a PDF.
+    """
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        raise RuntimeError(
+            "PyMuPDF is required for PDF support. Install it with: pip install pymupdf"
+        )
+
+    try:
+        doc = fitz.open(stream=file_content, filetype="pdf")
+    except Exception as e:
+        raise ValueError(f"Cannot decode PDF: {e}") from e
+
+    try:
+        zoom = dpi / 72.0  # PDF base resolution is 72 DPI
+        matrix = fitz.Matrix(zoom, zoom)
+        for page in doc:
+            pixmap = page.get_pixmap(matrix=matrix, colorspace=fitz.csRGB, alpha=False)
+            img_bytes = pixmap.tobytes("ppm")
+            yield Image.open(io.BytesIO(img_bytes)).convert("RGB")
+    finally:
+        doc.close()
 
 # Map rotation degrees → PIL rotation constant
 # PIL rotates counter-clockwise, so to rotate an image clockwise by N degrees,
@@ -47,7 +84,7 @@ def load_image(file_content: bytes) -> Image.Image:
     try:
         image = Image.open(io.BytesIO(file_content))
         image.load()  # Force full decode to catch corrupt images
-        return image
+        return ImageOps.exif_transpose(image)
     except Exception as e:
         raise ValueError(f"Cannot decode image: {e}") from e
 

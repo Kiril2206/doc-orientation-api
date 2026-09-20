@@ -166,6 +166,39 @@ class TestCorrectOrientationEndpoint:
         )
         assert response.status_code == 200
 
+    def test_model_not_loaded_returns_503(self, sample_image_bytes: bytes) -> None:
+        """Should return 503 when model weights are not loaded."""
+        from contextlib import asynccontextmanager
+        from collections.abc import AsyncGenerator
+        from fastapi import FastAPI
+        from app.api import routes
+
+        @asynccontextmanager
+        async def unloaded_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+            routes._classifier = None
+            yield
+
+        original = routes._classifier
+        try:
+            app = create_app()
+            app.router.lifespan_context = unloaded_lifespan
+            with TestClient(app) as uninitialized_client:
+                routes._classifier = None
+                # Health check reports model_loaded=False
+                health_resp = uninitialized_client.get("/health")
+                assert health_resp.status_code == 200
+                assert health_resp.json()["model_loaded"] is False
+
+                # Correct orientation returns 503
+                response = uninitialized_client.post(
+                    "/correct-orientation",
+                    files={"file": ("document.jpg", sample_image_bytes, "image/jpeg")},
+                )
+                assert response.status_code == 503
+                assert "not loaded" in response.json()["detail"]
+        finally:
+            routes._classifier = original
+
 
 class TestSwaggerDocs:
     """Tests for auto-generated documentation."""

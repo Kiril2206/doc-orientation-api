@@ -27,6 +27,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     logger.info("Starting %s v%s", settings.app_name, settings.app_version)
 
+    # Clear any prior application instance before loading.
+    set_classifier(None)
     # Load model
     try:
         classifier = OrientationClassifier(settings.model_path)
@@ -71,6 +73,8 @@ def create_app() -> FastAPI:
             "X-Rotation-Applied",
             "X-Confidence",
             "X-Request-Id",
+            "X-Page-Count",
+            "Content-Disposition",
         ],
     )
 

@@ -143,8 +143,8 @@ class TestClassifierPreprocess:
 
         result = classifier_with_mock_session.predict(sample_document_image)
 
-        assert result.predicted_orientation == 90
-        assert result.correction_rotation == 270
+        assert result.predicted_orientation == 270
+        assert result.correction_rotation == 90
 
     def test_predict_180_degree(
         self, classifier_with_mock_session: OrientationClassifier, sample_document_image: Image.Image
@@ -167,5 +167,5 @@ class TestClassifierPreprocess:
 
         result = classifier_with_mock_session.predict(sample_document_image)
 
-        assert result.predicted_orientation == 270
-        assert result.correction_rotation == 90
+        assert result.predicted_orientation == 90
+        assert result.correction_rotation == 270

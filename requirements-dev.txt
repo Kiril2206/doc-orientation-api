@@ -5,8 +5,11 @@ httpx>=0.25.0,<1.0.0
 pytest-cov>=4.1.0,<6.0.0
 
 # Training (not needed in Docker image)
+# Note: For NVIDIA GPU support, install with:
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 torch>=2.0.0
 torchvision>=0.15.0
+onnx>=1.14.0
 datasets>=2.14.0
 tqdm>=4.66.0
 matplotlib>=3.7.0

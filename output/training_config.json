@@ -1,0 +1,21 @@
+{
+  "data_source": "hf_doclaynet",
+  "seed": 42,
+  "data_dir": null,
+  "num_images": 5000,
+  "epochs": 15,
+  "batch_size": 32,
+  "lr": 0.001,
+  "output_dir": "output",
+  "device": "cuda",
+  "freeze_epochs": 3,
+  "patience": 5,
+  "pretrained": true,
+  "export_onnx": false,
+  "onnx_output_path": "model\\orientation_model.onnx",
+  "split_sizes": {
+    "train": 14000,
+    "validation": 3000
+  },
+  "label_rotation": "counterclockwise"
+}
