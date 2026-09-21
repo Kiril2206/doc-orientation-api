@@ -1,5 +1,9 @@
 # Project review
 
+> This is the earlier v1 review. For the implemented v2 architecture, optional
+> Hybrid mode, validation results and current limitations, see
+> [MODEL_V2.md](MODEL_V2.md).
+
 FastAPI receives files, Pillow handles images, and ONNX Runtime serves a ResNet-18 CNN. Training uses PyTorch with four counterclockwise rotation labels.
 
 ## Fixed

@@ -1,88 +1,71 @@
+"""Export v2 or legacy v1 checkpoints with an explicit preprocessing contract."""
 import argparse
-import os
-import torch
-import torch.nn as nn
-from torchvision.models import resnet18
+import json
+from pathlib import Path
+
 import numpy as np
+import onnx
+import onnxruntime as ort
+import torch
 
-def get_args():
-    parser = argparse.ArgumentParser(description="Export Document Orientation Classifier to ONNX")
-    parser.add_argument('--model-path', type=str, required=True, help="Path to best_model.pth")
-    parser.add_argument('--output-path', type=str, default=os.path.join('model', 'orientation_model.onnx'), help="Path to save ONNX model")
-    parser.add_argument('--verify', action='store_true', help="Verify ONNX model with onnxruntime")
-    return parser.parse_args()
+from training.models import build_model, read_checkpoint
 
-def export_model(model_path: str, output_path: str = os.path.join('model', 'orientation_model.onnx'), verify: bool = False):
-    """Export trained PyTorch model to ONNX format."""
-    output_dir = os.path.dirname(os.path.abspath(output_path))
-    os.makedirs(output_dir, exist_ok=True)
 
-    # Load Model
-    print(f"Loading PyTorch model from {model_path}...")
-    model = resnet18()
-    num_ftrs = model.fc.in_features
-    model.fc = nn.Linear(num_ftrs, 4)
-    model.load_state_dict(torch.load(model_path, map_location='cpu'))
+def export_model(model_path, output_path=None, verify=True):
+    checkpoint = read_checkpoint(model_path)
+    config = checkpoint["config"]
+    version = config["model_version"]
+    if output_path is None:
+        output_path = f"model/orientation_model{'_v2' if version == 'v2' else ''}.onnx"
+    output = Path(output_path)
+    if version != "v2" and output.name == "orientation_model_v2.onnx":
+        raise ValueError("Refusing to label a legacy v1 checkpoint as v2")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = output.with_suffix(".tmp.onnx")
+    model = build_model(config["backbone"], pretrained=False)
+    model.load_state_dict(checkpoint["model_state"])
     model.eval()
-
-    # Create dummy input: Dynamic batch size, 3 channels, 224x224
-    dummy_input = torch.randn(1, 3, 224, 224, requires_grad=True)
-
-    # Export
-    print(f"Exporting to ONNX: {output_path}...")
-    torch.onnx.export(
-        model,
-        dummy_input,
-        output_path,
-        export_params=True,
-        opset_version=14,
-        do_constant_folding=True,
-        input_names=['input'],
-        output_names=['output'],
-        dynamic_axes={
-            'input': {0: 'batch_size'},
-            'output': {0: 'batch_size'}
-        }
-    )
-
-    file_size_mb = os.path.getsize(output_path) / (1024 * 1024)
-    print(f"ONNX model saved to {output_path}! Size: {file_size_mb:.2f} MB")
-
+    size = config["input_size"]
+    sample = torch.randn(1, 3, size, size)
+    torch.onnx.export(model, sample, str(temporary), export_params=True, opset_version=17,
+                      input_names=["input"], output_names=["output"],
+                      dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
+                      dynamo=False)
+    exported = onnx.load(str(temporary))
+    onnx.helper.set_model_props(exported, {
+        "model_version": version, "backbone": config["backbone"],
+        "input_size": str(size), "resize_mode": config["resize_mode"],
+        "angles_ccw": json.dumps(config["angles_ccw"]),
+        "normalization": "imagenet_rgb", "manifest_sha256": config.get("manifest_sha256", "legacy"),
+    })
+    onnx.checker.check_model(exported)
+    onnx.save(exported, str(temporary))
     if verify:
-        print("\nVerifying ONNX model...")
-        try:
-            import onnxruntime as ort
-        except ImportError:
-            print("onnxruntime is not installed. Please install it to verify the model: pip install onnxruntime")
-            return
+        options = ort.SessionOptions()
+        options.intra_op_num_threads = 1
+        session = ort.InferenceSession(str(temporary), sess_options=options, providers=["CPUExecutionProvider"])
+        for batch in (1, 2):
+            inputs = torch.randn(batch, 3, size, size)
+            with torch.inference_mode():
+                expected = model(inputs).numpy()
+            actual = session.run(None, {"input": inputs.numpy()})[0]
+            np.testing.assert_allclose(actual, expected, rtol=1e-3, atol=1e-4)
+        del session
+        print("ONNX parity verified for batch sizes 1 and 2.")
+    temporary.replace(output)
+    print(f"Exported {version}: {output} ({output.stat().st_size / 1024**2:.1f} MiB)")
+    return str(output)
 
-        # Get PyTorch output
-        with torch.no_grad():
-            torch_out = model(dummy_input)
-
-        # Get ONNX Runtime output
-        ort_session = ort.InferenceSession(output_path)
-
-        def to_numpy(tensor):
-            return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
-
-        ort_inputs = {ort_session.get_inputs()[0].name: to_numpy(dummy_input)}
-        ort_outs = ort_session.run(None, ort_inputs)
-
-        # Compare
-        np.testing.assert_allclose(to_numpy(torch_out), ort_outs[0], rtol=1e-03, atol=1e-05)
-        print("Verification successful! PyTorch and ONNX Runtime outputs match within tolerance.")
-
-        # Test dynamic batch size
-        print("Testing dynamic batch size (batch=4)...")
-        dummy_input_batch = torch.randn(4, 3, 224, 224)
-        ort_inputs_batch = {ort_session.get_inputs()[0].name: to_numpy(dummy_input_batch)}
-        ort_outs_batch = ort_session.run(None, ort_inputs_batch)
-        print(f"Dynamic batch size test passed. Output shape: {ort_outs_batch[0].shape}")
 
 def main():
-    args = get_args()
-    export_model(args.model_path, args.output_path, verify=args.verify)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--model-path", required=True)
+    parser.add_argument("--output-path")
+    parser.add_argument("--verify", action="store_true", help="Parity verification is always enabled.")
+    args = parser.parse_args()
+    torch.set_num_threads(4)
+    export_model(args.model_path, args.output_path, verify=True)
+
 
 if __name__ == "__main__":
     main()

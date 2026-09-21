@@ -1,5 +1,9 @@
 # Better document training data
 
+> Model v2 now uses a prepared, reviewed local manifest. The old direct-Hub
+> training commands below describe the previous v1 pipeline; use
+> [MODEL_V2.md](MODEL_V2.md) for current commands and API modes.
+
 Research checked 2026-09-18. Keep ResNet-18 for the first improved baseline.
 
 | Dataset | Why it helps | Access and published terms |

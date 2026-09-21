@@ -1,0 +1,31 @@
+{
+  "manifest": "data/v2_universal_4k/manifest.jsonl",
+  "backbone": "resnet18",
+  "input_size": 224,
+  "model_version": "v1",
+  "epochs": 15,
+  "batch_size": 16,
+  "lr": 0.0003,
+  "weight_decay": 0.0001,
+  "patience": 5,
+  "workers": 0,
+  "cpu_threads": 4,
+  "seed": 42,
+  "device": "cuda",
+  "no_pretrained": false,
+  "no_amp": false,
+  "allow_unreviewed": false,
+  "source_weights": null,
+  "output_dir": "output/v1_resnet18_universal",
+  "resume": null,
+  "export_onnx": true,
+  "onnx_output_path": "model/orientation_model.onnx",
+  "resize_mode": "letterbox",
+  "angles_ccw": [
+    0,
+    90,
+    180,
+    270
+  ],
+  "manifest_sha256": "183047f7e092f1f855f1fc4821498b34f266a31d9480a731136040a5f976040e"
+}

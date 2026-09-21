@@ -6,8 +6,13 @@ FROM python:3.11-slim AS builder
 WORKDIR /build
 
 # Install dependencies into a separate directory for clean copy
-COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+COPY requirements.txt requirements-hybrid.txt ./
+ARG INSTALL_HYBRID=false
+RUN if [ "$INSTALL_HYBRID" = "true" ]; then \
+      pip install --no-cache-dir --prefix=/install -r requirements-hybrid.txt; \
+    else \
+      pip install --no-cache-dir --prefix=/install -r requirements.txt; \
+    fi
 
 # ==============================================================================
 # Stage 2: Runtime — minimal image with app + model

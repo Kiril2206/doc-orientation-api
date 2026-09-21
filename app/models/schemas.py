@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 class HealthResponse(BaseModel):
     """Response for the health check endpoint."""
 
+    inference_mode: str = "pure"
+    modes: dict = Field(default_factory=dict)
     status: str = Field(default="healthy", examples=["healthy"])
     model_loaded: bool = Field(default=True, examples=[True])
     version: str = Field(default="1.0.0", examples=["1.0.0"])

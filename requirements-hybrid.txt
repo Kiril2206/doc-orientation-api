@@ -1,0 +1,3 @@
+# Optional dependencies for the hybrid demonstration pipeline
+-r requirements.txt
+rapidocr-onnxruntime>=1.3.0,<2.0.0

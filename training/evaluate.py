@@ -1,99 +1,65 @@
+"""Evaluate pure neural classification on the held-out manifest split."""
 import argparse
+import hashlib
 import json
-import os
+from pathlib import Path
+
 import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader
-from torchvision.models import resnet18
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
-import matplotlib.pyplot as plt
-import seaborn as sns
-try:
-    from dataset import create_splits
-except ImportError:
-    from training.dataset import create_splits
 from tqdm import tqdm
 
-def get_args():
-    parser = argparse.ArgumentParser(description="Evaluate Document Orientation Classifier")
-    parser.add_argument('--model-path', type=str, required=True, help="Path to best_model.pth")
-    parser.add_argument('--data-source', type=str, default='hf_mixed', choices=['hf_mixed', 'hf_doclaynet', 'hf_cord', 'hf_rvlcdip', 'hf', 'local'])
-    parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--data-dir', type=str, default=None)
-    parser.add_argument('--num-images', type=int, default=5000)
-    parser.add_argument('--batch-size', type=int, default=32)
-    parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
-    parser.add_argument('--output-dir', type=str, default='./output')
-    return parser.parse_args()
+from training.dataset import ManifestOrientationDataset, read_manifest
+from training.metrics import orientation_metrics
+from training.models import build_model, read_checkpoint
+
 
 def main():
-    args = get_args()
-    device = torch.device(args.device)
-    print(f"Using device: {device}")
-    
-    os.makedirs(args.output_dir, exist_ok=True)
-    
-    # Load data
-    print("Preparing test dataset...")
-    (test_ds,) = create_splits(
-        source=args.data_source, 
-        data_dir=args.data_dir, 
-        num_images=args.num_images,
-        seed=args.seed,
-        splits=("test",),
-    )
-    
-    test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, num_workers=0)
-    
-    # Load Model
-    print(f"Loading model from {args.model_path}...")
-    model = resnet18()
-    num_ftrs = model.fc.in_features
-    model.fc = nn.Linear(num_ftrs, 4)
-    model.load_state_dict(torch.load(args.model_path, map_location=device))
-    model = model.to(device)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--model-path", required=True)
+    parser.add_argument("--manifest", required=True)
+    parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument("--output-dir", default="output/v2/evaluation")
+    args = parser.parse_args()
+    torch.set_num_threads(4)
+    checkpoint = read_checkpoint(args.model_path)
+    config = checkpoint["config"]
+    if config["model_version"] != "v2":
+        raise ValueError("This evaluation entry point expects a v2 checkpoint.")
+    records = read_manifest(args.manifest)
+    dataset = ManifestOrientationDataset(args.manifest, "test", config["input_size"], records=records)
+    model = build_model(config["backbone"], pretrained=False).to(args.device)
+    model.load_state_dict(checkpoint["model_state"])
     model.eval()
-    
-    all_preds = []
-    all_labels = []
-    
-    with torch.no_grad():
-        for inputs, labels in tqdm(test_loader, desc="Evaluating"):
-            inputs, labels = inputs.to(device), labels.to(device)
-            outputs = model(inputs)
-            _, predicted = torch.max(outputs, 1)
-            
-            all_preds.extend(predicted.cpu().numpy())
-            all_labels.extend(labels.cpu().numpy())
-            
-    # Metrics
-    acc = accuracy_score(all_labels, all_preds)
-    print(f"\nOverall Accuracy: {acc:.4f}")
-    
-    class_names = ['0°', '90°', '180°', '270°']
-    report = classification_report(all_labels, all_preds, target_names=class_names, output_dict=True)
-    print("\nClassification Report:")
-    print(classification_report(all_labels, all_preds, target_names=class_names))
-    
-    # Save metrics
-    metrics_path = os.path.join(args.output_dir, 'evaluation_metrics.json')
-    with open(metrics_path, 'w') as f:
-        json.dump(report, f, indent=4)
-        
-    # Confusion Matrix
-    cm = confusion_matrix(all_labels, all_preds)
-    plt.figure(figsize=(8, 6))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=class_names, yticklabels=class_names)
-    plt.title('Confusion Matrix')
-    plt.ylabel('True Label')
-    plt.xlabel('Predicted Label')
-    
-    cm_path = os.path.join(args.output_dir, 'confusion_matrix.png')
-    plt.savefig(cm_path)
-    plt.close()
-    
-    print(f"\nSaved metrics to {metrics_path}")
-    print(f"Saved confusion matrix plot to {cm_path}")
+    predictions, targets = [], []
+    with torch.inference_mode():
+        for images, labels in tqdm(DataLoader(dataset, batch_size=args.batch_size), desc="Test"):
+            predictions.extend(model(images.to(args.device)).argmax(1).cpu().tolist())
+            targets.extend(labels.tolist())
+    metrics = orientation_metrics(targets, predictions)
+    for field in ("source", "language", "category"):
+        groups = {}
+        for index, record in enumerate(dataset.records):
+            group = str(record.get(field, "unknown"))
+            groups.setdefault(group, []).extend(range(index * 4, index * 4 + 4))
+        metrics["by_" + field] = {
+            group: orientation_metrics([targets[i] for i in ids], [predictions[i] for i in ids])
+            for group, ids in groups.items()}
+    metrics["manifest_sha256"] = hashlib.sha256(Path(args.manifest).read_bytes()).hexdigest()
+    metrics["training_manifest_sha256"] = config.get("manifest_sha256")
+    output = Path(args.output_dir)
+    output.mkdir(parents=True, exist_ok=True)
+    (output / "evaluation_metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    sns.heatmap(metrics["confusion_matrix"], annot=True, fmt="d",
+                xticklabels=metrics["confusion_angles_cw"], yticklabels=metrics["confusion_angles_cw"])
+    plt.xlabel("Predicted angle CW"); plt.ylabel("True angle CW")
+    plt.tight_layout(); plt.savefig(output / "confusion_matrix.png"); plt.close()
+    print(json.dumps({key: metrics[key] for key in ("accuracy", "per_angle_cw", "confusions_0_180")}, indent=2))
+
 
 if __name__ == "__main__":
     main()

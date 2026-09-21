@@ -1,56 +1,57 @@
 # Document Orientation Correction
 
-Upload an image or PDF at **http://127.0.0.1:8000/**.
-Images return in their original format. PDFs return as PDFs with page rotation
-adjusted while preserving their text and page content. The CNN remains ResNet-18.
+FastAPI + Pillow + ONNX Runtime CPU + PyMuPDF. Upload images or PDFs; corrected PDFs retain their original text and page content.
 
-## Start on Windows
+Two explicit pipelines:
+- **Pure CV:** Model v2, EfficientNet-B0 at 384×384 by default, no OCR.
+- **Hybrid:** legacy v1 with optional RapidOCR verification for ambiguous 0/180 predictions.
+
+V2 weights require training. If they are absent, Pure returns 503 and the UI explains why. There is no silent v1 fallback.
+
+**[Пошаговая инструкция Model v2: данные, обучение, API, экспорт и benchmark](docs/MODEL_V2.md)**
+
+Start on Windows:
 
 ~~~powershell
 .\start-app.ps1
 ~~~
 
-Leave the terminal running. If PowerShell script execution is restricted:
+Or:
 
 ~~~powershell
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ~~~
 
-- [Browser app](http://127.0.0.1:8000/)
-- [API documentation](http://127.0.0.1:8000/docs)
-- [Model health](http://127.0.0.1:8000/health)
-- Upload API: POST /correct-orientation, multipart field named file
+Open http://127.0.0.1:8000/ or http://127.0.0.1:8000/docs. The server must remain running.
 
-Localhost links work only on the computer running the server.
-The service requires model/orientation_model.onnx.
-
-## Setup
+Dependencies:
 
 ~~~powershell
-python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt -r requirements-dev.txt
 ~~~
 
-## Training
+Optional hybrid dependencies:
 
-See [dataset recommendations and training commands](docs/DATASETS.md)
-and [project analysis](docs/PROJECT_REVIEW.md).
-The default corpus is DocLayNet v1.2 plus CORD.
-Train into a separate candidate checkpoint until evaluation passes.
+~~~powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-hybrid.txt
+~~~
 
-## Docker
+POST /correct-orientation accepts multipart file and mode=pure|hybrid.
+If mode is omitted, APP_INFERENCE_MODE applies. /health lists available models.
+See .env.example for model paths and thresholds.
+
+Docker:
 
 ~~~powershell
 docker compose up --build
 ~~~
 
-## Tests
+For an OCR-enabled image, build with --build-arg INSTALL_HYBRID=true before starting Compose.
+
+Tests:
 
 ~~~powershell
 .\.venv\Scripts\python.exe -m pytest
 ~~~
 
-The default limits are 10 MB and 100 PDF pages.
-Only quarter-turn rotation is supported; arbitrary skew is not corrected.
-API angles are clockwise. PDF angle headers describe the first page, and
-confidence is the lowest page confidence. Checkpoint labels remain counterclockwise.
+Default limits: 10 MB, 100 PDF pages. API angles are clockwise; checkpoint class angles remain counterclockwise. Only quarter turns are corrected, not arbitrary skew or perspective.

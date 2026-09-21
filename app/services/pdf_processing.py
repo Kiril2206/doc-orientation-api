@@ -3,7 +3,7 @@ import fitz
 from PIL import Image
 
 
-def correct_pdf(content, classifier, max_pages=100):
+def correct_pdf(content, classifier, max_pages=100, mode="pure"):
     try:
         doc = fitz.open(stream=content, filetype="pdf")
     except Exception as exc:
@@ -22,7 +22,7 @@ def correct_pdf(content, classifier, max_pages=100):
             pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale),
                                  colorspace=fitz.csRGB, alpha=False)
             image = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-            result = classifier.predict(image)
+            result = classifier.predict(image, mode=mode)
             # Rendering respects existing /Rotate. Add the visual correction.
             page.set_rotation((page.rotation + result.correction_rotation) % 360)
             results.append(result)

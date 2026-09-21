@@ -226,3 +226,139 @@ def create_splits(source="hf_mixed", data_dir=None, num_images=5000, seed=42, sp
                            is_train=split == "train", split=split, seed=seed)
         for split in splits
     )
+
+
+# Model v2 uses an audited, disk-backed manifest. The legacy loader above remains
+# available for reproducing v1 experiments; it must never resize v2 inputs to 224.
+import json
+from collections import Counter
+
+import numpy as np
+from torch.utils.data import Sampler
+
+from app.services.preprocessing import image_tensor, prepare_image
+
+
+class RandomShadow:
+    """Soft lighting gradient without changing character or page orientation."""
+    def __call__(self, image):
+        if random.random() >= .35:
+            return image
+        array = np.asarray(image, dtype=np.float32) / 255
+        yy, xx = np.mgrid[-1:1:complex(image.height), -1:1:complex(image.width)]
+        angle = random.uniform(0, 2 * np.pi)
+        gradient = (np.cos(angle) * xx + np.sin(angle) * yy + 2) / 4
+        darkness = random.uniform(.15, .45)
+        shade = 1 - darkness * gradient
+        return Image.fromarray(np.uint8(np.clip(array * shade[..., None], 0, 1) * 255))
+
+
+def read_manifest(manifest_path, allow_unreviewed=False):
+    path = Path(manifest_path).resolve()
+    records = []
+    group_splits = {}
+    hashes = {}
+    for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        record = json.loads(line)
+        if record.get("exclude", False):
+            continue
+        required = {"path", "split", "source", "group_id", "upright_verified"}
+        if not required <= record.keys() or record["split"] not in SPLITS:
+            raise ValueError(f"Invalid manifest row {line_no}")
+        if record["upright_verified"] is not True and not allow_unreviewed:
+            raise ValueError(f"Unreviewed uprightness at row {line_no}. Review the manifest first.")
+        rotation = record.get("correction_cw", 0)
+        if rotation not in (0, 90, 180, 270):
+            raise ValueError(f"Invalid correction_cw at row {line_no}")
+        file_path = (path.parent / record["path"]).resolve()
+        if not file_path.is_file():
+            raise ValueError(f"Missing image at row {line_no}: {file_path}")
+        # All pages/templates with this group must stay in the same split.
+        group = record["group_id"]
+        if group in group_splits and group_splits[group] != record["split"]:
+            raise ValueError(f"Group leaks across splits: {group}")
+        group_splits[group] = record["split"]
+        digest = hashlib.sha256(file_path.read_bytes()).hexdigest()
+        if record.get("sha256") and record["sha256"] != digest:
+            raise ValueError(f"Image checksum changed at row {line_no}: {file_path}")
+        if digest in hashes:
+            if hashes[digest] != record["split"]:
+                raise ValueError(f"Duplicate image leaks across splits: {file_path}")
+            continue  # Identical export within one split is not independent data.
+        hashes[digest] = record["split"]
+        record["resolved_path"] = file_path
+        record["sha256"] = digest
+        records.append(record)
+    if not records:
+        raise ValueError("Manifest has no usable pages")
+    return records
+
+
+class ManifestOrientationDataset(Dataset):
+    def __init__(self, manifest_path, split, input_size=384, allow_unreviewed=False,
+                 records=None):
+        if input_size not in (224, 384, 448):
+            raise ValueError("Supported input_size: 224, 384, or 448")
+        all_records = records if records is not None else read_manifest(
+            manifest_path, allow_unreviewed)
+        self.records = [record for record in all_records if record["split"] == split]
+        if not self.records:
+            raise ValueError(f"No pages in manifest split {split}")
+        self.input_size = input_size
+        self.is_train = split == "train"
+        self.augment = transforms.Compose([
+            transforms.RandomAffine(degrees=3, translate=(.025, .025), scale=(.95, 1.05),
+                                    interpolation=transforms.InterpolationMode.BILINEAR,
+                                    fill=(255, 255, 255)),
+            transforms.ColorJitter(brightness=.25, contrast=.25, saturation=.2, hue=.025),
+            RandomShadow(),
+            transforms.RandomApply([transforms.GaussianBlur(3, sigma=(.1, 1.2))], p=.2),
+        ])
+
+    def __len__(self):
+        return len(self.records) * 4
+
+    def __getitem__(self, index):
+        record = self.records[index // 4]
+        label = index % 4
+        with Image.open(record["resolved_path"]) as raw:
+            image = ImageOps.exif_transpose(raw).convert("RGB")
+            image = image.rotate(-record.get("correction_cw", 0), expand=True)
+            image = image.rotate(label * 90, expand=True)  # legacy CCW class contract
+            image = prepare_image(image, self.input_size, "letterbox")
+        if self.is_train:
+            image = self.augment(image)
+            if random.random() < .25:
+                array = np.asarray(image, dtype=np.float32)
+                array += np.random.normal(0, random.uniform(1, 5), array.shape)
+                image = Image.fromarray(np.uint8(np.clip(array, 0, 255)))
+        return torch.from_numpy(image_tensor(image)), label
+
+
+class BalancedSourceSampler(Sampler):
+    """Sample base pages by source weight, then emit all four angles per page."""
+    def __init__(self, dataset, source_weights, seed=42):
+        counts = Counter(record["source"] for record in dataset.records)
+        if set(source_weights) != set(counts) or any(not np.isfinite(w) or w <= 0 for w in source_weights.values()):
+            raise ValueError(f"source weights must cover exactly {sorted(counts)} with positive values")
+        self.weights = torch.tensor([source_weights[r["source"]] / counts[r["source"]]
+                                     for r in dataset.records], dtype=torch.double)
+        self.seed = seed
+        self.epoch = 0
+        self.base_count = len(dataset.records)
+
+    def set_epoch(self, epoch):
+        self.epoch = epoch
+
+    def __len__(self):
+        return self.base_count * 4
+
+    def __iter__(self):
+        generator = torch.Generator().manual_seed(self.seed + self.epoch)
+        pages = torch.multinomial(self.weights, self.base_count, replacement=True,
+                                  generator=generator).tolist()
+        indices = [page * 4 + angle for page in pages for angle in range(4)]
+        order = torch.randperm(len(indices), generator=generator).tolist()
+        return iter([indices[i] for i in order])

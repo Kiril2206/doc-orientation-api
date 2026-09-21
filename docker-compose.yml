@@ -6,7 +6,9 @@ services:
     environment:
       - APP_LOG_LEVEL=INFO
       - APP_DEBUG=false
-      - APP_MODEL_PATH=/app/model/orientation_model.onnx
+      - APP_MODEL_PATH_V1=/app/model/orientation_model.onnx
+      - APP_MODEL_PATH_V2=/app/model/orientation_model_v2.onnx
+      - APP_INFERENCE_MODE=pure
     volumes:
       - ./model:/app/model:ro
     restart: unless-stopped

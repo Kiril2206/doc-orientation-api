@@ -26,6 +26,7 @@ Thumbs.db
 
 # Training artifacts (large files)
 training/output/
+output/v2*/
 *.pth
 *.onnx
 !model/.gitkeep

@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router, set_classifier
 from app.core.config import get_settings
 from app.core.logging import setup_logging
-from app.services.classifier import OrientationClassifier
+from app.services.classifier import OrientationService
 
 logger = logging.getLogger(__name__)
 
@@ -31,15 +31,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     set_classifier(None)
     # Load model
     try:
-        classifier = OrientationClassifier(settings.model_path)
+        classifier = OrientationService(settings)
         set_classifier(classifier)
-        logger.info("Model loaded successfully from %s", settings.model_path)
+        logger.info("Available modes: %s", classifier.availability())
     except (FileNotFoundError, RuntimeError) as e:
         logger.error("Failed to load model: %s", e)
         logger.warning("Service starting WITHOUT a model. /correct-orientation will fail.")
 
     yield
 
+    set_classifier(None)
     # Shutdown
     logger.info("Shutting down %s", settings.app_name)
 
@@ -54,7 +55,7 @@ def create_app() -> FastAPI:
         description=(
             "API for automatic document orientation correction. "
             "Upload a document image and receive the image rotated to upright (0°) orientation. "
-            "The service uses a fine-tuned ResNet-18 model to classify orientation."
+            "Choose pure (v2 neural model) or hybrid (v1 with optional text verification)."
         ),
         lifespan=lifespan,
         docs_url="/docs",
@@ -74,6 +75,11 @@ def create_app() -> FastAPI:
             "X-Confidence",
             "X-Request-Id",
             "X-Page-Count",
+            "X-Inference-Mode",
+            "X-Model-Version",
+            "X-Decision-Source",
+            "X-Decision-Counts",
+            "X-Confidence-Source",
             "Content-Disposition",
         ],
     )
