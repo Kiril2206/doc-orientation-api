@@ -15,7 +15,10 @@ from app.api import routes
 from app.core.config import Settings
 from app.main import create_app
 from app.services.classifier import (
-    ModelUnavailableError, OrientationClassifier, OrientationService, PredictionResult,
+    ModelUnavailableError,
+    OrientationClassifier,
+    OrientationService,
+    PredictionResult,
 )
 from training.dataset import BalancedSourceSampler, ManifestOrientationDataset, read_manifest
 from training.metrics import orientation_metrics

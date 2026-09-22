@@ -2,8 +2,8 @@
 
 import io
 import logging
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 
 from PIL import Image, ImageOps
 
@@ -69,7 +69,7 @@ FORMAT_MAP = {
 }
 
 
-def load_image(file_content: bytes) -> Image.Image:
+def load_image(file_content: bytes, max_pixels: int = 25_000_000) -> Image.Image:
     """Load an image from bytes.
 
     Args:
@@ -82,9 +82,13 @@ def load_image(file_content: bytes) -> Image.Image:
         ValueError: If the bytes cannot be decoded as an image.
     """
     try:
-        image = Image.open(io.BytesIO(file_content))
-        image.load()  # Force full decode to catch corrupt images
-        return ImageOps.exif_transpose(image)
+        with Image.open(io.BytesIO(file_content)) as image:
+            if image.width * image.height > max_pixels:
+                raise ValueError(f"Image exceeds the {max_pixels:,}-pixel limit.")
+            if getattr(image, "n_frames", 1) != 1:
+                raise ValueError("Multipage TIFF and animated images are not supported. Use PDF for multiple pages.")
+            image.load()
+            return ImageOps.exif_transpose(image).copy()
     except Exception as e:
         raise ValueError(f"Cannot decode image: {e}") from e
 
@@ -132,8 +136,11 @@ def image_to_bytes(image: Image.Image, output_format: str = "JPEG", quality: int
     """
     buffer = io.BytesIO()
 
-    # Convert RGBA to RGB for JPEG (JPEG doesn't support alpha)
-    if output_format.upper() == "JPEG" and image.mode in ("RGBA", "LA", "P"):
+    from app.services.preprocessing import rgb_image
+
+    if output_format.upper() == "JPEG" and image.mode not in ("RGB", "L", "CMYK"):
+        image = rgb_image(image)
+    elif image.mode == "CMYK" and output_format.upper() not in ("JPEG", "TIFF"):
         image = image.convert("RGB")
 
     save_kwargs: dict = {}

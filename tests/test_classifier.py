@@ -1,9 +1,10 @@
 """Unit tests for the orientation classifier service."""
 
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
 from PIL import Image
-from unittest.mock import MagicMock, patch
 
 from app.services.classifier import (
     CORRECTION_MAP,

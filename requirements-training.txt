@@ -1,0 +1,10 @@
+# Optional research tooling. No training is needed to run the demo.
+# For GPU work install the appropriate torch/torchvision wheels first.
+torch==2.6.0
+torchvision==0.21.0
+onnx>=1.17,<2
+datasets>=3,<6
+tqdm>=4.66,<5
+matplotlib>=3.9,<4
+seaborn>=0.13,<1
+scikit-learn>=1.5,<2

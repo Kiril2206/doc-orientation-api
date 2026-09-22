@@ -1,7 +1,9 @@
 """Validate source splits without downloading a corpus."""
 from unittest.mock import patch
+
 from PIL import Image
-from training.dataset import create_splits, _source_images, _load_local
+
+from training.dataset import _load_local, _source_images, create_splits
 
 
 def test_official_splits_are_kept():
@@ -61,9 +63,11 @@ def test_evaluation_loads_only_test_split():
 
 def test_parquet_reader_excludes_pdf_payloads(tmp_path):
     import io
+
+    import datasets
     import pyarrow as pa
     import pyarrow.parquet as pq
-    import datasets
+
     from training.dataset import _load_hf
 
     encoded = io.BytesIO()
@@ -93,8 +97,10 @@ def test_parquet_reader_excludes_pdf_payloads(tmp_path):
 
 def test_loading_wait_message_and_thread_cleanup():
     import threading
-    from training.dataset import _loading_progress
+
     from tqdm import tqdm
+
+    from training.dataset import _loading_progress
 
     reported = threading.Event()
     with patch.object(tqdm, "write", side_effect=lambda *a, **k: reported.set()):

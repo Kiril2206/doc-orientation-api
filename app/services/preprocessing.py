@@ -7,8 +7,18 @@ STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 ANGLES_CCW = [0, 90, 180, 270]
 
 
+def rgb_image(image):
+    """Normalize EXIF and composite transparency onto white for classification."""
+    image = ImageOps.exif_transpose(image)
+    if image.mode in ("RGBA", "LA") or "transparency" in image.info:
+        rgba = image.convert("RGBA")
+        background = Image.new("RGBA", rgba.size, "white")
+        return Image.alpha_composite(background, rgba).convert("RGB")
+    return image.convert("RGB")
+
+
 def prepare_image(image, input_size=384, resize_mode="letterbox"):
-    image = ImageOps.exif_transpose(image).convert("RGB")
+    image = rgb_image(image)
     size = (input_size, input_size)
     if resize_mode == "stretch":
         return image.resize(size, Image.Resampling.BILINEAR)

@@ -1,13 +1,15 @@
 """Regression tests for actual rotation direction and PDF preservation."""
 import io
 from unittest.mock import MagicMock
+
 import fitz
 import numpy as np
 import pytest
-from PIL import Image
 from fastapi.testclient import TestClient
-from app.main import create_app
+from PIL import Image
+
 from app.api.routes import set_classifier
+from app.main import create_app
 from app.services.classifier import OrientationClassifier, PredictionResult
 from app.services.image_processing import load_image, rotate_image
 from app.services.pdf_processing import correct_pdf
@@ -73,6 +75,7 @@ def test_exif_orientation_normalized():
 
 def test_home_and_pdf_upload():
     from contextlib import asynccontextmanager
+
     from app.api import routes
     original = routes._classifier
     clf = MagicMock()

@@ -1,16 +1,46 @@
+# Python artifacts
 __pycache__
 *.pyc
 *.pyo
+*.pyd
 *.egg-info
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+htmlcov/
+
+# Local virtual environment
+.venv/
+venv/
+env/
+
+# Massive data and output directories (~7.4 GB)
+data/
+output/
+docs/AWS_READINESS_REVIEW_2026_09_22.pdf
+
+# Git & CI/CD
 .git
 .gitignore
+.github
+
+# Secrets and environment files
 .env
 *.md
+*.env.local
+
+# Development and scratch files
 training/
 tests/
+scripts/
 requirements-dev.txt
 .ruff_cache
 .pytest_cache
 .mypy_cache
+requirements-test.txt
+requirements-training.txt
+requirements.in
 *.tar.gz
 *.onnx.tmp
+*.log

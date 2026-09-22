@@ -1,7 +1,7 @@
 """Text orientation verifier using RapidOCR text direction classifier (OSD)."""
 
 import logging
-from typing import Optional
+import threading
 
 import numpy as np
 from PIL import Image
@@ -19,10 +19,11 @@ class TextOrientationVerifier:
     """
 
     def __init__(self) -> None:
+        self._inference_lock = threading.Lock()
         try:
             from rapidocr_onnxruntime import RapidOCR
 
-            self._engine = RapidOCR()
+            self._engine = RapidOCR(intra_op_num_threads=1, inter_op_num_threads=1)
             self._available = True
             logger.info("TextOrientationVerifier (OSD) initialized successfully.")
         except Exception as e:
@@ -35,7 +36,12 @@ class TextOrientationVerifier:
         """Whether the OCR text verifier is initialized and available."""
         return self._available and self._engine is not None
 
-    def detect_orientation(self, image: Image.Image) -> Optional[int]:
+    def detect_orientation(self, image: Image.Image) -> int | None:
+        # The detector mutates preprocessing state. Also safe for non-API callers.
+        with self._inference_lock:
+            return self._detect_orientation(image)
+
+    def _detect_orientation(self, image: Image.Image) -> int | None:
         """Detect the orientation (0, 90, 180, 270) of text in an image.
 
         Returns:
@@ -114,4 +120,3 @@ class TextOrientationVerifier:
         except Exception as e:
             logger.warning("Error during text orientation detection: %s", e)
             return None
-

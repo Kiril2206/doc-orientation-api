@@ -1,14 +1,14 @@
 """Integration tests for the FastAPI application."""
 
 import io
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from app.main import create_app
 from app.api.routes import set_classifier
+from app.main import create_app
 from app.services.classifier import PredictionResult
 
 
@@ -33,8 +33,9 @@ def client(mock_classifier_fixture: MagicMock) -> TestClient:
     We patch the lifespan to avoid loading the real ONNX model,
     and inject our mock classifier instead.
     """
-    from contextlib import asynccontextmanager
     from collections.abc import AsyncGenerator
+    from contextlib import asynccontextmanager
+
     from fastapi import FastAPI
 
     @asynccontextmanager
@@ -168,9 +169,11 @@ class TestCorrectOrientationEndpoint:
 
     def test_model_not_loaded_returns_503(self, sample_image_bytes: bytes) -> None:
         """Should return 503 when model weights are not loaded."""
-        from contextlib import asynccontextmanager
         from collections.abc import AsyncGenerator
+        from contextlib import asynccontextmanager
+
         from fastapi import FastAPI
+
         from app.api import routes
 
         @asynccontextmanager

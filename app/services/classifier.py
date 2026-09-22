@@ -19,12 +19,13 @@ CORRECTION_MAP = {0: 0, 90: 270, 180: 180, 270: 90}
 class PredictionResult(NamedTuple):
     predicted_orientation: int
     correction_rotation: int
-    confidence: float | None  # None when the provider does not supply a calibrated score.
+    confidence: float | None  # Raw CNN score; neither calibrated nor supplied by Gemini.
     mode: str = "pure"
     model_version: str = "v1"
     decision_source: str = "cv"
     cnn_confidence: float = 0.0
     confidence_source: str = "cnn-probability-of-returned-angle"
+    needs_review: bool = False
 
 
 class ModelUnavailableError(RuntimeError):
@@ -73,6 +74,11 @@ class OrientationClassifier:
         self._verifier_lock = threading.Lock()
         self.hybrid_confidence_threshold = hybrid_confidence_threshold
         self.hybrid_margin = hybrid_margin
+        # Exercise actual ONNX execution before the service can report ready.
+        output = self._session.run([self._output_name], {
+            self._input_name: np.zeros((1, 3, self.input_size, self.input_size), dtype=np.float32)})[0]
+        if output.shape != (1, 4) or not np.isfinite(output).all():
+            raise RuntimeError("Model warm-up returned invalid logits")
         logger.info("Loaded %s: %s, input=%d, resize=%s",
                     self.model_version, model_path, self.input_size, self.resize_mode)
 
@@ -176,7 +182,7 @@ class OrientationService:
                     "GenAI is not configured. Set APP_GEMINI_API_KEY on the server and restart it.")
             target = "orientation_model_v2.onnx" if mode == "pure" else "orientation_model.onnx"
             raise ModelUnavailableError(
-                f"{mode} model not loaded. Train/export {target} and restart the server.")
+                f"{mode} model not loaded. Restore the trained {target} artifact and restart.")
 
     def predict(self, image, mode="pure", prompt=None):
         self.ensure_mode(mode)

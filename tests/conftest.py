@@ -1,7 +1,6 @@
 """Shared test fixtures and configuration."""
 
 import io
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import numpy as np

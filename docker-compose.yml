@@ -1,6 +1,8 @@
 services:
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     environment:
@@ -10,16 +12,20 @@ services:
       - APP_MODEL_PATH_V2=/app/model/orientation_model_v2.onnx
       - APP_INFERENCE_MODE=${APP_INFERENCE_MODE:-pure}
       - APP_GEMINI_API_KEY=${APP_GEMINI_API_KEY:-}
-      - APP_GEMINI_MODEL=${APP_GEMINI_MODEL:-gemini-3.6-flash}
-      - APP_GEMINI_TIMEOUT_SECONDS=${APP_GEMINI_TIMEOUT_SECONDS:-60}
+      - APP_GEMINI_MODEL=${APP_GEMINI_MODEL:-gemini-3.5-flash-lite}
+      - APP_GEMINI_TIMEOUT_SECONDS=${APP_GEMINI_TIMEOUT_SECONDS:-15}
       - APP_GENAI_IMAGE_MAX_SIDE=${APP_GENAI_IMAGE_MAX_SIDE:-1600}
       - APP_GENAI_MAX_PDF_PAGES=${APP_GENAI_MAX_PDF_PAGES:-10}
+      - APP_REQUIRE_AUTH=${APP_REQUIRE_AUTH:-false}
+      - APP_DEMO_USERNAME=${APP_DEMO_USERNAME:-demo}
+      - APP_DEMO_PASSWORD=${APP_DEMO_PASSWORD:-}
+      - APP_REQUESTS_PER_MINUTE=${APP_REQUESTS_PER_MINUTE:-30}
     volumes:
       - ./model:/app/model:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 30s
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/live || exit 1"]
+      interval: 15s
       timeout: 5s
       retries: 3
       start_period: 10s

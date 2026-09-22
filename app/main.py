@@ -5,15 +5,17 @@ and returns the image rotated to upright (0°) orientation.
 """
 
 import logging
-from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import router, set_classifier
+from app.api.routes import close_processor, router, set_classifier
 from app.core.config import get_settings
 from app.core.logging import setup_logging
+from app.core.middleware import DemoMiddleware
 from app.services.classifier import OrientationService
 
 logger = logging.getLogger(__name__)
@@ -43,6 +45,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         yield
     finally:
         set_classifier(None)
+        close_processor()
         if classifier is not None:
             classifier.close()
         logger.info("Shutting down %s", settings.app_name)
@@ -66,27 +69,9 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
-    # CORS middleware
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],  # Restrict in production
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=[
-            "X-Original-Orientation",
-            "X-Rotation-Applied",
-            "X-Confidence",
-            "X-Request-Id",
-            "X-Page-Count",
-            "X-Inference-Mode",
-            "X-Model-Version",
-            "X-Decision-Source",
-            "X-Decision-Counts",
-            "X-Confidence-Source",
-            "Content-Disposition",
-        ],
-    )
+    # Browser and API share one origin; AWS requires a demo password.
+    app.add_middleware(DemoMiddleware, settings=settings)
+    app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
     # Register routes
     app.include_router(router, tags=["Orientation"])

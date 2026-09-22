@@ -1,0 +1,77 @@
+{
+  "family": "doc-orientation-api",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "2048",
+  "memory": "4096",
+  "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/docOrientationTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "doc-orientation-api",
+      "image": "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/doc-orientation-api:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "name": "http",
+          "containerPort": 8000,
+          "hostPort": 8000,
+          "protocol": "tcp",
+          "appProtocol": "http"
+        }
+      ],
+      "environment": [
+        { "name": "APP_LOG_LEVEL", "value": "INFO" },
+        { "name": "APP_DEBUG", "value": "false" },
+        { "name": "APP_INFERENCE_MODE", "value": "pure" },
+        { "name": "APP_GEMINI_MODEL", "value": "gemini-3.5-flash-lite" },
+        { "name": "APP_GEMINI_TIMEOUT_SECONDS", "value": "15" },
+        { "name": "APP_GENAI_MAX_PDF_PAGES", "value": "10" },
+        { "name": "APP_GENAI_IMAGE_MAX_SIDE", "value": "1600" },
+        { "name": "APP_MAX_IMAGE_SIZE_MB", "value": "10" },
+        { "name": "APP_MAX_IMAGE_PIXELS", "value": "25000000" },
+        { "name": "APP_MAX_PDF_PAGES", "value": "20" },
+        { "name": "APP_PROCESSING_TIMEOUT_SECONDS", "value": "45" },
+        { "name": "APP_UPLOAD_TIMEOUT_SECONDS", "value": "20" },
+        { "name": "APP_REQUESTS_PER_MINUTE", "value": "30" },
+        { "name": "APP_REQUIRE_AUTH", "value": "true" },
+        { "name": "APP_DEMO_USERNAME", "value": "demo" }
+      ],
+      "secrets": [
+        {
+          "name": "APP_GEMINI_API_KEY",
+          "valueFrom": "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/doc-orientation/gemini-api-key"
+        },
+        {
+          "name": "APP_DEMO_PASSWORD",
+          "valueFrom": "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/doc-orientation/demo-password"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/doc-orientation-api",
+          "awslogs-region": "${AWS_REGION}",
+          "awslogs-stream-prefix": "fargate"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "curl -f http://localhost:8000/live || exit 1"
+        ],
+        "interval": 15,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 15
+      },
+      "linuxParameters": {
+        "initProcessEnabled": true
+      },
+      "readonlyRootFilesystem": false
+    }
+  ]
+}
+

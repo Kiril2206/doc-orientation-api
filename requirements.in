@@ -1,0 +1,11 @@
+# Direct runtime dependencies. Regenerate requirements.txt with uv pip compile.
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+python-multipart==0.0.32
+httpx==0.28.1
+onnxruntime==1.30.0
+Pillow==12.3.0
+numpy==2.5.2
+pymupdf==1.28.2
+pydantic-settings==2.15.0
+rapidocr-onnxruntime==1.4.4

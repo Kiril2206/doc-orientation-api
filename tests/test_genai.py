@@ -16,7 +16,7 @@ from app.api import routes
 from app.core.config import Settings
 from app.main import create_app
 from app.services.classifier import OrientationService
-from app.services.genai import GenAIError, GeminiOrientationClassifier, parse_rotation
+from app.services.genai import GeminiOrientationClassifier, GenAIError, parse_rotation
 
 
 def gemini_response(angle=0, uncertain=False, finish="STOP"):

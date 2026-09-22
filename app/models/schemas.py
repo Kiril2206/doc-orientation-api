@@ -8,16 +8,16 @@ class HealthResponse(BaseModel):
 
     inference_mode: str = "pure"
     modes: dict = Field(default_factory=dict)
+    limits: dict = Field(default_factory=dict)
     status: str = Field(default="healthy", examples=["healthy"])
     model_loaded: bool = Field(default=True, examples=[True])
-    version: str = Field(default="1.0.0", examples=["1.0.0"])
+    version: str = Field(default="2.1.0", examples=["2.1.0"])
 
 
 class OrientationResult(BaseModel):
     """Metadata about the orientation correction result.
 
-    Returned as JSON when the client requests metadata-only,
-    or embedded in response headers for image responses.
+    Describes response header semantics; the correction endpoint returns files.
     """
 
     original_orientation_degrees: int = Field(
