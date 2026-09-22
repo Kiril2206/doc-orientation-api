@@ -30,9 +30,9 @@ class OrientationResult(BaseModel):
         description="Rotation applied to correct the image (0, 270, 180, or 90).",
         examples=[270],
     )
-    confidence: float = Field(
+    confidence: float | None = Field(
         ...,
-        description="Model confidence for the predicted orientation (0.0 to 1.0).",
+        description="CNN score (0.0 to 1.0); absent for Gemini.",
         ge=0.0,
         le=1.0,
         examples=[0.987],

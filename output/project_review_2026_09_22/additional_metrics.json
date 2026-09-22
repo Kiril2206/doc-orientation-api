@@ -1,0 +1,109 @@
+{
+  "cpu_name": "Intel Core i5-7400 @ 3.00GHz, 4 cores / 4 logical processors",
+  "models": {
+    "v1": {
+      "real_only_n": 1652,
+      "real_only_accuracy": {
+        "pure": 0.9600484261501211,
+        "hybrid": 0.9709443099273608
+      },
+      "by_category": {
+        "financial_reports": {
+          "n": 504,
+          "pure": 0.9503968253968254,
+          "hybrid": 0.9603174603174603
+        },
+        "government_tenders": {
+          "n": 208,
+          "pure": 1.0,
+          "hybrid": 1.0
+        },
+        "laws_and_regulations": {
+          "n": 276,
+          "pure": 1.0,
+          "hybrid": 1.0
+        },
+        "official_document": {
+          "n": 504,
+          "pure": 1.0,
+          "hybrid": 1.0
+        },
+        "patents": {
+          "n": 268,
+          "pure": 0.8619402985074627,
+          "hybrid": 0.9067164179104478
+        },
+        "receipt": {
+          "n": 152,
+          "pure": 0.9736842105263158,
+          "hybrid": 0.9802631578947368
+        },
+        "scientific_articles": {
+          "n": 244,
+          "pure": 1.0,
+          "hybrid": 1.0
+        }
+      },
+      "upright_false_corrections": {
+        "pure": 25,
+        "hybrid": 13
+      },
+      "ocr_call_latency_median_p95_ms": [
+        760.9285999787971,
+        1711.9111000210978
+      ]
+    },
+    "v2": {
+      "real_only_n": 1652,
+      "real_only_accuracy": {
+        "pure": 0.9697336561743342,
+        "hybrid": 0.9733656174334141
+      },
+      "by_category": {
+        "financial_reports": {
+          "n": 504,
+          "pure": 0.9563492063492064,
+          "hybrid": 0.9642857142857143
+        },
+        "government_tenders": {
+          "n": 208,
+          "pure": 1.0,
+          "hybrid": 1.0
+        },
+        "laws_and_regulations": {
+          "n": 276,
+          "pure": 1.0,
+          "hybrid": 1.0
+        },
+        "official_document": {
+          "n": 504,
+          "pure": 1.0,
+          "hybrid": 1.0
+        },
+        "patents": {
+          "n": 268,
+          "pure": 0.9104477611940298,
+          "hybrid": 0.914179104477612
+        },
+        "receipt": {
+          "n": 152,
+          "pure": 0.9802631578947368,
+          "hybrid": 0.9802631578947368
+        },
+        "scientific_articles": {
+          "n": 244,
+          "pure": 0.9959016393442623,
+          "hybrid": 1.0
+        }
+      },
+      "upright_false_corrections": {
+        "pure": 8,
+        "hybrid": 6
+      },
+      "ocr_call_latency_median_p95_ms": [
+        1149.5197499752976,
+        3833.968474937137
+      ]
+    }
+  }
+}

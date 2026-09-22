@@ -13,6 +13,7 @@ from app.core.config import get_settings
 from app.core.logging import generate_request_id, request_id_ctx
 from app.models.schemas import ErrorResponse, HealthResponse
 from app.services.classifier import OrientationClassifier, OrientationService, ModelUnavailableError
+from app.services.genai import GenAIError
 from app.services.pdf_processing import correct_pdf
 from app.services.image_processing import (
     get_media_type,
@@ -76,7 +77,8 @@ async def health_check() -> HealthResponse:
         "The response includes orientation metadata in the headers:\n"
         "- `X-Original-Orientation`: detected orientation in degrees\n"
         "- `X-Rotation-Applied`: rotation applied to correct the image\n"
-        "- `X-Confidence`: model confidence score"
+        "- `X-Confidence`: CNN score; omitted for GenAI\n"
+        "Modes: pure, hybrid, genai (Gemini API). genai_prompt adds optional document context."
     ),
     responses={
         200: {
@@ -86,6 +88,8 @@ async def health_check() -> HealthResponse:
         400: {"model": ErrorResponse, "description": "Invalid input (bad file type, corrupt image, etc.)"},
         413: {"model": ErrorResponse, "description": "File too large"},
         503: {"model": ErrorResponse, "description": "Model weights not loaded or trained yet"},
+        502: {"model": ErrorResponse, "description": "Invalid response or connection failure from Gemini"},
+        504: {"model": ErrorResponse, "description": "Gemini request timed out"},
         500: {"model": ErrorResponse, "description": "Internal server error"},
     },
 )
@@ -96,6 +100,7 @@ async def correct_orientation(
         description="Document image file (JPEG, PNG, TIFF, BMP, WEBP) or PDF. Max 10 MB.",
     ),
     mode: str | None = Form("pure"),
+    genai_prompt: str = Form("", max_length=2000, description="Optional document context for Gemini."),
 ) -> Response:
     """Return a corrected image or an original PDF with per-page rotations.
 
@@ -110,8 +115,8 @@ async def correct_orientation(
     if "mode" not in await request.form():
         mode = settings.inference_mode
     mode = mode or settings.inference_mode
-    if mode not in ("pure", "hybrid"):
-        raise HTTPException(status_code=422, detail="mode must be pure or hybrid")
+    if mode not in ("pure", "hybrid", "genai"):
+        raise HTTPException(status_code=422, detail="mode must be pure, hybrid or genai")
     classifier = get_classifier()
     if isinstance(classifier, OrientationService):
         try:
@@ -158,8 +163,12 @@ async def correct_orientation(
     # Classify page previews and update the original PDF page rotations.
     if ext == ".pdf":
         try:
+            max_pages = min(settings.max_pdf_pages, settings.genai_max_pdf_pages) if mode == "genai" else settings.max_pdf_pages
             output, results = await run_in_threadpool(
-                correct_pdf, content, classifier, settings.max_pdf_pages, mode=mode)
+                correct_pdf, content, classifier, max_pages, mode=mode,
+                **({"prompt": genai_prompt} if mode == "genai" else {}))
+        except GenAIError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except Exception as exc:
@@ -171,7 +180,6 @@ async def correct_orientation(
             headers={
                 "X-Original-Orientation": str(results[0].predicted_orientation),
                 "X-Rotation-Applied": str(results[0].correction_rotation),
-                "X-Confidence": f"{min(r.confidence for r in results):.4f}",
                 "X-Page-Count": str(len(results)),
                 **pipeline_headers(results, mode),
                 "X-Request-Id": req_id,
@@ -187,7 +195,10 @@ async def correct_orientation(
 
     # --- Classify orientation ---
     try:
-        result = await run_in_threadpool(classifier.predict, image, mode=mode)
+        result = await run_in_threadpool(classifier.predict, image, mode=mode,
+                                        **({"prompt": genai_prompt} if mode == "genai" else {}))
+    except GenAIError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
     except Exception as e:
         logger.error("Model inference failed: %s", e)
         raise HTTPException(
@@ -204,7 +215,7 @@ async def correct_orientation(
     output_bytes = image_to_bytes(corrected, output_format=output_format)
 
     logger.info(
-        "Response: orientation=%d°, correction=%d°, confidence=%.3f, output_size=%.1f KB",
+        "Response: orientation=%d°, correction=%d°, confidence=%s, output_size=%.1f KB",
         result.predicted_orientation,
         result.correction_rotation,
         result.confidence,
@@ -219,7 +230,6 @@ async def correct_orientation(
             **pipeline_headers([result], mode),
             "X-Original-Orientation": str(result.predicted_orientation),
             "X-Rotation-Applied": str(result.correction_rotation),
-            "X-Confidence": f"{result.confidence:.4f}",
             "X-Request-Id": req_id,
             "Content-Disposition": "attachment; filename*=UTF-8''" + quote("corrected_" + filename),
         },
@@ -235,10 +245,13 @@ def pipeline_headers(results, mode):
     counts = {}
     for result in results:
         counts[result.decision_source] = counts.get(result.decision_source, 0) + 1
-    return {
+    headers = {
         "X-Inference-Mode": mode,
         "X-Model-Version": results[0].model_version,
         "X-Decision-Source": next(iter(counts)) if len(counts) == 1 else "mixed",
         "X-Decision-Counts": json.dumps(counts, separators=(",", ":")),
-        "X-Confidence-Source": "cnn-probability-of-returned-angle",
+        "X-Confidence-Source": results[0].confidence_source,
     }
+    if all(result.confidence is not None for result in results):
+        headers["X-Confidence"] = f"{min(result.confidence for result in results):.4f}"
+    return headers

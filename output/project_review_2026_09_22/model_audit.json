@@ -1,0 +1,1921 @@
+{
+  "manifest_sha256": "183047f7e092f1f855f1fc4821498b34f266a31d9480a731136040a5f976040e",
+  "platform": "Windows-10-10.0.19045-SP0",
+  "processor": "Intel64 Family 6 Model 158 Stepping 9, GenuineIntel",
+  "onnxruntime": "1.30.0",
+  "threads": 2,
+  "unique_split_counts": {
+    "train": 2926,
+    "validation": 628,
+    "test": 539
+  },
+  "unique_source_splits": {
+    "global_cyrillic/train": 236,
+    "global_cyrillic/validation": 34,
+    "global_cyrillic/test": 30,
+    "global_arabic/train": 211,
+    "global_arabic/test": 40,
+    "global_arabic/validation": 49,
+    "global_indic/test": 33,
+    "global_indic/train": 218,
+    "global_indic/validation": 49,
+    "global_cjk/train": 232,
+    "global_cjk/validation": 45,
+    "global_cjk/test": 23,
+    "funsd/train": 110,
+    "funsd/validation": 39,
+    "cord/train": 175,
+    "cord/validation": 37,
+    "cord/test": 38,
+    "doclaynet/train": 1744,
+    "doclaynet/validation": 375,
+    "doclaynet/test": 375
+  },
+  "scope": "Existing test labels, not independently audited. All four rotations. Sequential local CPU inference; latency excludes decode, rotation, PDF and HTTP. Hybrid uses identical weights to each pure baseline.",
+  "models": {
+    "v1": {
+      "sha256": "cd3a6d77fa1a8882e12e5adc40729f0b98447f4b3026b9622e66ea6e1302b449",
+      "bytes": 44704998,
+      "input_size": 224,
+      "resize_mode": "letterbox",
+      "decisions": {
+        "cv_no_ambiguity": 2105,
+        "ocr_override": 20,
+        "cv_ocr_confirmed": 25,
+        "cv_ocr_inconclusive": 6
+      },
+      "ocr_fixes": 18,
+      "ocr_harms": 0,
+      "confident_errors_at_090": 26,
+      "total_seconds": 231.31743560009636,
+      "pure": {
+        "accuracy": 0.9693877551020408,
+        "macro_f1": 0.9693947293925643,
+        "per_angle_cw": {
+          "0": {
+            "precision": 0.982791586998088,
+            "recall": 0.9536178107606679,
+            "f1": 0.967984934086629,
+            "support": 539
+          },
+          "270": {
+            "precision": 0.9533213644524237,
+            "recall": 0.9851576994434137,
+            "f1": 0.968978102189781,
+            "support": 539
+          },
+          "180": {
+            "precision": 0.9566003616636528,
+            "recall": 0.9814471243042672,
+            "f1": 0.9688644688644689,
+            "support": 539
+          },
+          "90": {
+            "precision": 0.9866156787762906,
+            "recall": 0.9573283858998145,
+            "f1": 0.9717514124293786,
+            "support": 539
+          }
+        },
+        "confusion_angles_cw": [
+          0,
+          90,
+          180,
+          270
+        ],
+        "confusion_matrix": [
+          [
+            514,
+            0,
+            22,
+            3
+          ],
+          [
+            0,
+            516,
+            1,
+            22
+          ],
+          [
+            8,
+            1,
+            529,
+            1
+          ],
+          [
+            1,
+            6,
+            1,
+            531
+          ]
+        ],
+        "confusions_0_180": 30,
+        "by_source": {
+          "cord": {
+            "accuracy": 0.9736842105263158,
+            "macro_f1": 0.9736796536796537,
+            "per_angle_cw": {
+              "0": {
+                "precision": 1.0,
+                "recall": 0.9736842105263158,
+                "f1": 0.9866666666666667,
+                "support": 38
+              },
+              "270": {
+                "precision": 0.9487179487179487,
+                "recall": 0.9736842105263158,
+                "f1": 0.961038961038961,
+                "support": 38
+              },
+              "180": {
+                "precision": 0.9743589743589743,
+                "recall": 1.0,
+                "f1": 0.987012987012987,
+                "support": 38
+              },
+              "90": {
+                "precision": 0.972972972972973,
+                "recall": 0.9473684210526315,
+                "f1": 0.96,
+                "support": 38
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                37,
+                0,
+                1,
+                0
+              ],
+              [
+                0,
+                36,
+                0,
+                2
+              ],
+              [
+                0,
+                0,
+                38,
+                0
+              ],
+              [
+                0,
+                1,
+                0,
+                37
+              ]
+            ],
+            "confusions_0_180": 1
+          },
+          "doclaynet": {
+            "accuracy": 0.9586666666666667,
+            "macro_f1": 0.9586749523440107,
+            "per_angle_cw": {
+              "0": {
+                "precision": 0.975,
+                "recall": 0.936,
+                "f1": 0.9551020408163265,
+                "support": 375
+              },
+              "270": {
+                "precision": 0.9387755102040817,
+                "recall": 0.9813333333333333,
+                "f1": 0.9595827900912647,
+                "support": 375
+              },
+              "180": {
+                "precision": 0.9407216494845361,
+                "recall": 0.9733333333333334,
+                "f1": 0.9567496723460026,
+                "support": 375
+              },
+              "90": {
+                "precision": 0.9833333333333333,
+                "recall": 0.944,
+                "f1": 0.963265306122449,
+                "support": 375
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                351,
+                0,
+                21,
+                3
+              ],
+              [
+                0,
+                354,
+                1,
+                20
+              ],
+              [
+                8,
+                1,
+                365,
+                1
+              ],
+              [
+                1,
+                5,
+                1,
+                368
+              ]
+            ],
+            "confusions_0_180": 29
+          },
+          "global_arabic": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "per_angle_cw": {
+              "0": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 40
+              },
+              "270": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 40
+              },
+              "180": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 40
+              },
+              "90": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 40
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                40,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                40,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                40,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                40
+              ]
+            ],
+            "confusions_0_180": 0
+          },
+          "global_cjk": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "per_angle_cw": {
+              "0": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 23
+              },
+              "270": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 23
+              },
+              "180": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 23
+              },
+              "90": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 23
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                23,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                23,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                23,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                23
+              ]
+            ],
+            "confusions_0_180": 0
+          },
+          "global_cyrillic": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "per_angle_cw": {
+              "0": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 30
+              },
+              "270": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 30
+              },
+              "180": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 30
+              },
+              "90": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 30
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                30,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                30,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                30,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                30
+              ]
+            ],
+            "confusions_0_180": 0
+          },
+          "global_indic": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "per_angle_cw": {
+              "0": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 33
+              },
+              "270": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 33
+              },
+              "180": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 33
+              },
+              "90": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 33
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                33,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                33,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                33,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                33
+              ]
+            ],
+            "confusions_0_180": 0
+          }
+        },
+        "latency_ms": {
+          "median": 33.6708000395447,
+          "p95": 71.5172500058543,
+          "p99": 138.08145003276843,
+          "max": 747.7459999499843
+        }
+      },
+      "hybrid": {
+        "accuracy": 0.9777365491651205,
+        "macro_f1": 0.9777538190504279,
+        "per_angle_cw": {
+          "0": {
+            "precision": 0.994328922495274,
+            "recall": 0.9758812615955473,
+            "f1": 0.9850187265917603,
+            "support": 539
+          },
+          "270": {
+            "precision": 0.9533213644524237,
+            "recall": 0.9851576994434137,
+            "f1": 0.968978102189781,
+            "support": 539
+          },
+          "180": {
+            "precision": 0.9780621572212066,
+            "recall": 0.9925788497217068,
+            "f1": 0.9852670349907919,
+            "support": 539
+          },
+          "90": {
+            "precision": 0.9866156787762906,
+            "recall": 0.9573283858998145,
+            "f1": 0.9717514124293786,
+            "support": 539
+          }
+        },
+        "confusion_angles_cw": [
+          0,
+          90,
+          180,
+          270
+        ],
+        "confusion_matrix": [
+          [
+            526,
+            0,
+            10,
+            3
+          ],
+          [
+            1,
+            516,
+            0,
+            22
+          ],
+          [
+            2,
+            1,
+            535,
+            1
+          ],
+          [
+            0,
+            6,
+            2,
+            531
+          ]
+        ],
+        "confusions_0_180": 12,
+        "by_source": {
+          "cord": {
+            "accuracy": 0.9802631578947368,
+            "macro_f1": 0.9802597402597403,
+            "per_angle_cw": {
+              "0": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 38
+              },
+              "270": {
+                "precision": 0.9487179487179487,
+                "recall": 0.9736842105263158,
+                "f1": 0.961038961038961,
+                "support": 38
+              },
+              "180": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 38
+              },
+              "90": {
+                "precision": 0.972972972972973,
+                "recall": 0.9473684210526315,
+                "f1": 0.96,
+                "support": 38
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                38,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                36,
+                0,
+                2
+              ],
+              [
+                0,
+                0,
+                38,
+                0
+              ],
+              [
+                0,
+                1,
+                0,
+                37
+              ]
+            ],
+            "confusions_0_180": 0
+          },
+          "doclaynet": {
+            "accuracy": 0.97,
+            "macro_f1": 0.9700295737931418,
+            "per_angle_cw": {
+              "0": {
+                "precision": 0.9917808219178083,
+                "recall": 0.9653333333333334,
+                "f1": 0.9783783783783784,
+                "support": 375
+              },
+              "270": {
+                "precision": 0.9387755102040817,
+                "recall": 0.9813333333333333,
+                "f1": 0.9595827900912647,
+                "support": 375
+              },
+              "180": {
+                "precision": 0.9686684073107049,
+                "recall": 0.9893333333333333,
+                "f1": 0.978891820580475,
+                "support": 375
+              },
+              "90": {
+                "precision": 0.9833333333333333,
+                "recall": 0.944,
+                "f1": 0.963265306122449,
+                "support": 375
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                362,
+                0,
+                10,
+                3
+              ],
+              [
+                1,
+                354,
+                0,
+                20
+              ],
+              [
+                2,
+                1,
+                371,
+                1
+              ],
+              [
+                0,
+                5,
+                2,
+                368
+              ]
+            ],
+            "confusions_0_180": 12
+          },
+          "global_arabic": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "per_angle_cw": {
+              "0": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 40
+              },
+              "270": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 40
+              },
+              "180": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 40
+              },
+              "90": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 40
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                40,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                40,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                40,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                40
+              ]
+            ],
+            "confusions_0_180": 0
+          },
+          "global_cjk": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "per_angle_cw": {
+              "0": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 23
+              },
+              "270": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 23
+              },
+              "180": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 23
+              },
+              "90": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 23
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                23,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                23,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                23,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                23
+              ]
+            ],
+            "confusions_0_180": 0
+          },
+          "global_cyrillic": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "per_angle_cw": {
+              "0": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 30
+              },
+              "270": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 30
+              },
+              "180": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 30
+              },
+              "90": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 30
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                30,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                30,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                30,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                30
+              ]
+            ],
+            "confusions_0_180": 0
+          },
+          "global_indic": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "per_angle_cw": {
+              "0": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 33
+              },
+              "270": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 33
+              },
+              "180": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 33
+              },
+              "90": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 33
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                33,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                33,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                33,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                33
+              ]
+            ],
+            "confusions_0_180": 0
+          }
+        },
+        "latency_ms": {
+          "median": 33.765100059099495,
+          "p95": 91.989124979591,
+          "p99": 790.462090051731,
+          "max": 1942.1727999579161
+        }
+      },
+      "blank_pages": [
+        {
+          "size": [
+            800,
+            1100
+          ],
+          "correction_cw": 180,
+          "confidence": 0.27303192019462585
+        },
+        {
+          "size": [
+            1100,
+            800
+          ],
+          "correction_cw": 180,
+          "confidence": 0.27303192019462585
+        },
+        {
+          "size": [
+            1000,
+            1000
+          ],
+          "correction_cw": 180,
+          "confidence": 0.27303192019462585
+        }
+      ]
+    },
+    "v2": {
+      "sha256": "d4ae8d22c269753bd324ef45066f8ffb67daafe0a3798fd914eff550f4161060",
+      "bytes": 16040936,
+      "input_size": 384,
+      "resize_mode": "letterbox",
+      "decisions": {
+        "cv_no_ambiguity": 2140,
+        "ocr_override": 6,
+        "cv_ocr_confirmed": 10
+      },
+      "ocr_fixes": 6,
+      "ocr_harms": 0,
+      "confident_errors_at_090": 22,
+      "total_seconds": 517.4471224999288,
+      "pure": {
+        "accuracy": 0.9768089053803339,
+        "macro_f1": 0.9768199843901554,
+        "per_angle_cw": {
+          "0": {
+            "precision": 0.9851576994434137,
+            "recall": 0.9851576994434137,
+            "f1": 0.9851576994434137,
+            "support": 539
+          },
+          "270": {
+            "precision": 0.9548736462093863,
+            "recall": 0.9814471243042672,
+            "f1": 0.9679780420860018,
+            "support": 539
+          },
+          "180": {
+            "precision": 0.9869646182495344,
+            "recall": 0.9833024118738405,
+            "f1": 0.9851301115241635,
+            "support": 539
+          },
+          "90": {
+            "precision": 0.9809885931558935,
+            "recall": 0.9573283858998145,
+            "f1": 0.9690140845070423,
+            "support": 539
+          }
+        },
+        "confusion_angles_cw": [
+          0,
+          90,
+          180,
+          270
+        ],
+        "confusion_matrix": [
+          [
+            531,
+            0,
+            6,
+            2
+          ],
+          [
+            1,
+            516,
+            0,
+            22
+          ],
+          [
+            7,
+            1,
+            530,
+            1
+          ],
+          [
+            0,
+            9,
+            1,
+            529
+          ]
+        ],
+        "confusions_0_180": 13,
+        "by_source": {
+          "cord": {
+            "accuracy": 0.9802631578947368,
+            "macro_f1": 0.9805063291139241,
+            "per_angle_cw": {
+              "0": {
+                "precision": 1.0,
+                "recall": 0.9736842105263158,
+                "f1": 0.9866666666666667,
+                "support": 38
+              },
+              "270": {
+                "precision": 0.926829268292683,
+                "recall": 1.0,
+                "f1": 0.9620253164556962,
+                "support": 38
+              },
+              "180": {
+                "precision": 1.0,
+                "recall": 0.9736842105263158,
+                "f1": 0.9866666666666667,
+                "support": 38
+              },
+              "90": {
+                "precision": 1.0,
+                "recall": 0.9736842105263158,
+                "f1": 0.9866666666666667,
+                "support": 38
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                37,
+                0,
+                0,
+                1
+              ],
+              [
+                0,
+                37,
+                0,
+                1
+              ],
+              [
+                0,
+                0,
+                37,
+                1
+              ],
+              [
+                0,
+                0,
+                0,
+                38
+              ]
+            ],
+            "confusions_0_180": 0
+          },
+          "doclaynet": {
+            "accuracy": 0.9686666666666667,
+            "macro_f1": 0.9686611861570646,
+            "per_angle_cw": {
+              "0": {
+                "precision": 0.9787234042553191,
+                "recall": 0.9813333333333333,
+                "f1": 0.9800266311584553,
+                "support": 375
+              },
+              "270": {
+                "precision": 0.9431524547803618,
+                "recall": 0.9733333333333334,
+                "f1": 0.958005249343832,
+                "support": 375
+              },
+              "180": {
+                "precision": 0.9812834224598931,
+                "recall": 0.9786666666666667,
+                "f1": 0.9799732977303071,
+                "support": 375
+              },
+              "90": {
+                "precision": 0.9724517906336089,
+                "recall": 0.9413333333333334,
+                "f1": 0.9566395663956639,
+                "support": 375
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                368,
+                0,
+                6,
+                1
+              ],
+              [
+                1,
+                353,
+                0,
+                21
+              ],
+              [
+                7,
+                1,
+                367,
+                0
+              ],
+              [
+                0,
+                9,
+                1,
+                365
+              ]
+            ],
+            "confusions_0_180": 13
+          },
+          "global_arabic": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "per_angle_cw": {
+              "0": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 40
+              },
+              "270": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 40
+              },
+              "180": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 40
+              },
+              "90": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 40
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                40,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                40,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                40,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                40
+              ]
+            ],
+            "confusions_0_180": 0
+          },
+          "global_cjk": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "per_angle_cw": {
+              "0": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 23
+              },
+              "270": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 23
+              },
+              "180": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 23
+              },
+              "90": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 23
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                23,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                23,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                23,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                23
+              ]
+            ],
+            "confusions_0_180": 0
+          },
+          "global_cyrillic": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "per_angle_cw": {
+              "0": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 30
+              },
+              "270": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 30
+              },
+              "180": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 30
+              },
+              "90": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 30
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                30,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                30,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                30,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                30
+              ]
+            ],
+            "confusions_0_180": 0
+          },
+          "global_indic": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "per_angle_cw": {
+              "0": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 33
+              },
+              "270": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 33
+              },
+              "180": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 33
+              },
+              "90": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 33
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                33,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                33,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                33,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                33
+              ]
+            ],
+            "confusions_0_180": 0
+          }
+        },
+        "latency_ms": {
+          "median": 82.1453999960795,
+          "p95": 243.41155006550252,
+          "p99": 439.0807550342256,
+          "max": 659.9480001023039
+        }
+      },
+      "hybrid": {
+        "accuracy": 0.9795918367346939,
+        "macro_f1": 0.979605502111945,
+        "per_angle_cw": {
+          "0": {
+            "precision": 0.9925512104283054,
+            "recall": 0.9888682745825603,
+            "f1": 0.9907063197026023,
+            "support": 539
+          },
+          "270": {
+            "precision": 0.9548736462093863,
+            "recall": 0.9814471243042672,
+            "f1": 0.9679780420860018,
+            "support": 539
+          },
+          "180": {
+            "precision": 0.9907235621521335,
+            "recall": 0.9907235621521335,
+            "f1": 0.9907235621521335,
+            "support": 539
+          },
+          "90": {
+            "precision": 0.9809885931558935,
+            "recall": 0.9573283858998145,
+            "f1": 0.9690140845070423,
+            "support": 539
+          }
+        },
+        "confusion_angles_cw": [
+          0,
+          90,
+          180,
+          270
+        ],
+        "confusion_matrix": [
+          [
+            533,
+            0,
+            4,
+            2
+          ],
+          [
+            1,
+            516,
+            0,
+            22
+          ],
+          [
+            3,
+            1,
+            534,
+            1
+          ],
+          [
+            0,
+            9,
+            1,
+            529
+          ]
+        ],
+        "confusions_0_180": 7,
+        "by_source": {
+          "cord": {
+            "accuracy": 0.9802631578947368,
+            "macro_f1": 0.9805063291139241,
+            "per_angle_cw": {
+              "0": {
+                "precision": 1.0,
+                "recall": 0.9736842105263158,
+                "f1": 0.9866666666666667,
+                "support": 38
+              },
+              "270": {
+                "precision": 0.926829268292683,
+                "recall": 1.0,
+                "f1": 0.9620253164556962,
+                "support": 38
+              },
+              "180": {
+                "precision": 1.0,
+                "recall": 0.9736842105263158,
+                "f1": 0.9866666666666667,
+                "support": 38
+              },
+              "90": {
+                "precision": 1.0,
+                "recall": 0.9736842105263158,
+                "f1": 0.9866666666666667,
+                "support": 38
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                37,
+                0,
+                0,
+                1
+              ],
+              [
+                0,
+                37,
+                0,
+                1
+              ],
+              [
+                0,
+                0,
+                37,
+                1
+              ],
+              [
+                0,
+                0,
+                0,
+                38
+              ]
+            ],
+            "confusions_0_180": 0
+          },
+          "doclaynet": {
+            "accuracy": 0.9726666666666667,
+            "macro_f1": 0.9726611932681883,
+            "per_angle_cw": {
+              "0": {
+                "precision": 0.9893048128342246,
+                "recall": 0.9866666666666667,
+                "f1": 0.9879839786381842,
+                "support": 375
+              },
+              "270": {
+                "precision": 0.9431524547803618,
+                "recall": 0.9733333333333334,
+                "f1": 0.958005249343832,
+                "support": 375
+              },
+              "180": {
+                "precision": 0.9867021276595744,
+                "recall": 0.9893333333333333,
+                "f1": 0.9880159786950732,
+                "support": 375
+              },
+              "90": {
+                "precision": 0.9724517906336089,
+                "recall": 0.9413333333333334,
+                "f1": 0.9566395663956639,
+                "support": 375
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                370,
+                0,
+                4,
+                1
+              ],
+              [
+                1,
+                353,
+                0,
+                21
+              ],
+              [
+                3,
+                1,
+                371,
+                0
+              ],
+              [
+                0,
+                9,
+                1,
+                365
+              ]
+            ],
+            "confusions_0_180": 7
+          },
+          "global_arabic": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "per_angle_cw": {
+              "0": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 40
+              },
+              "270": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 40
+              },
+              "180": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 40
+              },
+              "90": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 40
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                40,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                40,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                40,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                40
+              ]
+            ],
+            "confusions_0_180": 0
+          },
+          "global_cjk": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "per_angle_cw": {
+              "0": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 23
+              },
+              "270": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 23
+              },
+              "180": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 23
+              },
+              "90": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 23
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                23,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                23,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                23,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                23
+              ]
+            ],
+            "confusions_0_180": 0
+          },
+          "global_cyrillic": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "per_angle_cw": {
+              "0": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 30
+              },
+              "270": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 30
+              },
+              "180": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 30
+              },
+              "90": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 30
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                30,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                30,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                30,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                30
+              ]
+            ],
+            "confusions_0_180": 0
+          },
+          "global_indic": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "per_angle_cw": {
+              "0": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 33
+              },
+              "270": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 33
+              },
+              "180": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 33
+              },
+              "90": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "support": 33
+              }
+            },
+            "confusion_angles_cw": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "confusion_matrix": [
+              [
+                33,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                33,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                33,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                33
+              ]
+            ],
+            "confusions_0_180": 0
+          }
+        },
+        "latency_ms": {
+          "median": 83.76459998544306,
+          "p95": 249.92477500927635,
+          "p99": 535.1817449962225,
+          "max": 4081.375400070101
+        }
+      },
+      "blank_pages": [
+        {
+          "size": [
+            800,
+            1100
+          ],
+          "correction_cw": 180,
+          "confidence": 0.4203113317489624
+        },
+        {
+          "size": [
+            1100,
+            800
+          ],
+          "correction_cw": 180,
+          "confidence": 0.4203113317489624
+        },
+        {
+          "size": [
+            1000,
+            1000
+          ],
+          "correction_cw": 180,
+          "confidence": 0.4203113317489624
+        }
+      ]
+    }
+  },
+  "paired_pure": {
+    "v1_correct_v2_wrong": 19,
+    "v2_correct_v1_wrong": 35,
+    "both_wrong": 31
+  }
+}

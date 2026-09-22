@@ -204,8 +204,9 @@
     </div>
     <fieldset class="mode-picker">
       <legend>Режим обработки</legend>
-      <label><input type="radio" name="mode" value="pure" checked> Чистая модель (Pure CV)</label>
+      <label><input type="radio" name="mode" value="pure"> Чистая модель (Pure CV)</label>
       <label><input type="radio" name="mode" value="hybrid"> Гибридный режим (ML + OCR)</label>
+      <label><input type="radio" name="mode" value="genai" checked> GenAI (Gemini API)</label>
     </fieldset>
     <p id="modeStatus" role="status">Проверяем доступность моделей…</p>
     <button class="btn-start" id="startBtn" disabled>
@@ -260,6 +261,12 @@
     const mode = selectedMode();
     const available = modes[mode]?.available === true;
     startBtn.disabled = busy || !selectedFile || !available;
+    if (mode === 'genai') {
+      modeStatus.textContent = available
+        ? `Gemini: ${modes.genai.model_version}. До ${modes.genai.max_pdf_pages} страниц PDF. Запрос выполняется через Google Gemini API.`
+        : 'GenAI не настроен: добавьте APP_GEMINI_API_KEY в .env на сервере и перезапустите приложение.';
+      return;
+    }
     modeStatus.textContent = available
       ? (mode === 'pure' ? 'Model v2: только нейросеть, без OCR.' : 'Model v1 + OCR при неоднозначности 0°/180°. Отсутствие OCR будет указано в результате.')
       : (mode === 'pure' ? 'Model v2 ещё не загружена. Обучите и экспортируйте v2, затем перезапустите сервер. Для демонстрации доступен Hybrid, если загружена v1.' : 'Model v1 не загружена.');
@@ -349,6 +356,7 @@
     busy = true;
     modeInputs.forEach(input => input.disabled = true);
     chooseBtn.disabled = true;
+    fileInput.disabled = true;
     downloadBtn.style.display = 'none';
 
     const isPdf = selectedFile.name.toLowerCase().endsWith('.pdf');
@@ -392,6 +400,9 @@
       const form = new FormData();
       form.append('file', selectedFile);
       form.append('mode', mode);
+      if (mode === 'genai') {
+        startText.textContent = 'Gemini анализирует документ…';
+      }
       const resp = await fetch('/correct-orientation', { method: 'POST', body: form });
       const elapsed = Math.round(performance.now() - t0);
 
@@ -403,7 +414,7 @@
 
       const orientation = resp.headers.get('X-Original-Orientation') || '0';
       const rotation    = resp.headers.get('X-Rotation-Applied')     || '0';
-      const confidence  = resp.headers.get('X-Confidence')           || '1';
+      const confidence  = resp.headers.get('X-Confidence');
       const pageCount   = resp.headers.get('X-Page-Count')           || '1';
       const requestId   = resp.headers.get('X-Request-Id')           || '-';
       const ct          = resp.headers.get('Content-Type')           || '';
@@ -411,6 +422,9 @@
       const modelVersion = resp.headers.get('X-Model-Version');
       const decision = resp.headers.get('X-Decision-Source');
       const decisionCounts = resp.headers.get('X-Decision-Counts');
+      const confidenceText = confidence === null
+        ? 'Gemini не возвращает оценку вероятности'
+        : `${(parseFloat(confidence)*100).toFixed(1)}% (CNN; для PDF — минимум)`;
 
       // ── Display corrected images / PDF pages ───────────────────────
       if (isPdf || ct.includes('pdf')) {
@@ -454,7 +468,7 @@
         <div class="trow"><span class="tkey">Статус</span><span class="tval ok">200 OK — Успешно</span></div>
         <div class="trow"><span class="tkey">Обнаруженная ориентация</span><span class="tval">${orientation}°</span></div>
         <div class="trow"><span class="tkey">Применённый поворот</span><span class="tval">${rotation}° по часовой стрелке</span></div>
-        <div class="trow"><span class="tkey">Оценка CNN для итогового угла</span><span class="tval">${(parseFloat(confidence)*100).toFixed(1)}% (для PDF — минимум; это не уверенность OCR)</span></div>
+        <div class="trow"><span class="tkey">Оценка уверенности</span><span class="tval">${escapeHtml(confidenceText)}</span></div>
         <div class="trow"><span class="tkey">Обработано страниц</span><span class="tval">${pageCount}</span></div>
         <div class="trow"><span class="tkey">Время обработки</span><span class="tval">${elapsed} мс</span></div>
         <div class="trow"><span class="tkey">ID запроса</span><span class="tval" style="color:#8a97a8">${requestId}</span></div>
@@ -473,6 +487,7 @@
       busy = false;
       modeInputs.forEach(input => input.disabled = false);
       chooseBtn.disabled = false;
+      fileInput.disabled = false;
       updateMode();
       startSpinner.style.display = 'none';
       startText.textContent = 'Исправить ориентацию';

@@ -1,0 +1,19 @@
+{
+  "model_path": "model/orientation_model.onnx",
+  "input_size": 224,
+  "image_size": [
+    1240,
+    1754
+  ],
+  "threads": 2,
+  "runs": 50,
+  "median_ms": 43.138350010849535,
+  "p95_ms": 50.823225034400814,
+  "max_ms": 54.852699977345765,
+  "target_ms": 100,
+  "cpu": "Intel64 Family 6 Model 158 Stepping 9, GenuineIntel",
+  "platform": "Windows-10-10.0.19045-SP0",
+  "onnxruntime": "1.30.0",
+  "scope": "warm CPU, batch=1, RGB resize+normalization+ONNX; excludes file decode, PDF rendering, HTTP and OCR",
+  "passed": true
+}

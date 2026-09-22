@@ -8,7 +8,12 @@ services:
       - APP_DEBUG=false
       - APP_MODEL_PATH_V1=/app/model/orientation_model.onnx
       - APP_MODEL_PATH_V2=/app/model/orientation_model_v2.onnx
-      - APP_INFERENCE_MODE=pure
+      - APP_INFERENCE_MODE=${APP_INFERENCE_MODE:-pure}
+      - APP_GEMINI_API_KEY=${APP_GEMINI_API_KEY:-}
+      - APP_GEMINI_MODEL=${APP_GEMINI_MODEL:-gemini-3.6-flash}
+      - APP_GEMINI_TIMEOUT_SECONDS=${APP_GEMINI_TIMEOUT_SECONDS:-60}
+      - APP_GENAI_IMAGE_MAX_SIDE=${APP_GENAI_IMAGE_MAX_SIDE:-1600}
+      - APP_GENAI_MAX_PDF_PAGES=${APP_GENAI_MAX_PDF_PAGES:-10}
     volumes:
       - ./model:/app/model:ro
     restart: unless-stopped

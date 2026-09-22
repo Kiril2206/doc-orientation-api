@@ -30,6 +30,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Clear any prior application instance before loading.
     set_classifier(None)
     # Load model
+    classifier = None
     try:
         classifier = OrientationService(settings)
         set_classifier(classifier)
@@ -38,11 +39,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.error("Failed to load model: %s", e)
         logger.warning("Service starting WITHOUT a model. /correct-orientation will fail.")
 
-    yield
-
-    set_classifier(None)
-    # Shutdown
-    logger.info("Shutting down %s", settings.app_name)
+    try:
+        yield
+    finally:
+        set_classifier(None)
+        if classifier is not None:
+            classifier.close()
+        logger.info("Shutting down %s", settings.app_name)
 
 
 def create_app() -> FastAPI:
@@ -55,7 +58,8 @@ def create_app() -> FastAPI:
         description=(
             "API for automatic document orientation correction. "
             "Upload a document image and receive the image rotated to upright (0°) orientation. "
-            "Choose pure (v2 neural model) or hybrid (v1 with optional text verification)."
+            "Choose pure (v2 neural model), hybrid (v1 with text verification), "
+            "or genai (remote Gemini API)."
         ),
         lifespan=lifespan,
         docs_url="/docs",

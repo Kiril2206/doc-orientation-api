@@ -19,11 +19,12 @@ CORRECTION_MAP = {0: 0, 90: 270, 180: 180, 270: 90}
 class PredictionResult(NamedTuple):
     predicted_orientation: int
     correction_rotation: int
-    confidence: float  # CNN probability of the RETURNED angle; never an invented OCR score.
+    confidence: float | None  # None when the provider does not supply a calibrated score.
     mode: str = "pure"
     model_version: str = "v1"
     decision_source: str = "cv"
     cnn_confidence: float = 0.0
+    confidence_source: str = "cnn-probability-of-returned-angle"
 
 
 class ModelUnavailableError(RuntimeError):
@@ -136,7 +137,7 @@ class OrientationClassifier:
 
 
 class OrientationService:
-    """Pure serves v2. Hybrid serves the legacy v1 demonstration model."""
+    """Independent pure, hybrid and remote Gemini pipelines."""
     def __init__(self, settings):
         self.models = {}
         self.errors = {}
@@ -152,18 +153,37 @@ class OrientationService:
             except (FileNotFoundError, RuntimeError) as exc:
                 self.errors[mode] = str(exc)
                 logger.warning("%s unavailable: %s", mode, exc)
+        self.gemini_model = settings.gemini_model
+        self.genai_max_pdf_pages = min(settings.genai_max_pdf_pages, settings.max_pdf_pages)
+        if settings.gemini_api_key.get_secret_value().strip():
+            from app.services.genai import GeminiOrientationClassifier
+            self.models["genai"] = GeminiOrientationClassifier(settings)
 
     def availability(self):
-        return {mode: {"available": mode in self.models,
-                       "model_version": "v2" if mode == "pure" else "v1"}
-                for mode in ("pure", "hybrid")}
+        modes = {mode: {"available": mode in self.models,
+                        "model_version": "v2" if mode == "pure" else "v1"}
+                 for mode in ("pure", "hybrid")}
+        modes["genai"] = {"available": "genai" in self.models,
+                          "model_version": self.gemini_model,
+                          "provider": "gemini", "external": True,
+                          "max_pdf_pages": self.genai_max_pdf_pages}
+        return modes
 
     def ensure_mode(self, mode):
         if mode not in self.models:
+            if mode == "genai":
+                raise ModelUnavailableError(
+                    "GenAI is not configured. Set APP_GEMINI_API_KEY on the server and restart it.")
             target = "orientation_model_v2.onnx" if mode == "pure" else "orientation_model.onnx"
             raise ModelUnavailableError(
                 f"{mode} model not loaded. Train/export {target} and restart the server.")
 
-    def predict(self, image, mode="pure"):
+    def predict(self, image, mode="pure", prompt=None):
         self.ensure_mode(mode)
+        if mode == "genai":
+            return self.models[mode].predict(image, mode=mode, prompt=prompt)
         return self.models[mode].predict(image, mode=mode)
+
+    def close(self):
+        if "genai" in self.models:
+            self.models["genai"].close()
