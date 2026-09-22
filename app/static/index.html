@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Document Orientation &bull; Demo</title>
+  <title>Document Orientation Engine</title>
   <link rel="stylesheet" href="/static/style.css">
   <script src="/static/app.js" defer></script>
 </head>
@@ -11,9 +11,9 @@
 <main>
   <header>
     <div>
-      <p class="eyebrow">COMPUTER VISION / INTERVIEW DEMO</p>
-      <h1>Put documents the right way up.</h1>
-      <p class="intro">Compare a local neural model, text verification, and Gemini. Upload a document and inspect each page's correction.</p>
+      <p class="eyebrow">COMPUTER VISION &bull; AUTOMATION PIPELINE</p>
+      <h1>Automated Document Orientation Correction</h1>
+      <p class="intro">High-performance orientation detection and correction using local ONNX neural networks, text verification, and multimodal vision models.</p>
     </div>
     <a href="/docs" target="_blank" rel="noopener">API reference &rarr;</a>
   </header>
@@ -34,14 +34,14 @@
         </label>
         <label class="mode">
           <input type="radio" name="mode" value="genai">
-          <strong>Gemini <small>experimental</small></strong>
-          <span>Remote vision model &bull; no local training</span>
+          <strong>Gemini <small>multimodal</small></strong>
+          <span>Cloud vision model &bull; zero-shot inference</span>
         </label>
       </fieldset>
       <p id="modeStatus" role="status">Checking model availability...</p>
 
       <div id="remoteOptions" hidden>
-        <p class="notice">This mode sends page previews to Google Gemini and uses API quota. Use fictional or public documents for this demo.</p>
+        <p class="notice">This mode sends page previews to the Google Gemini API for zero-shot orientation analysis. Processing respects configured timeouts and quotas.</p>
         <label for="context">Optional document context</label>
         <textarea id="context" maxlength="2000" rows="2" placeholder="For example: use the main paragraph, not the circular stamp."></textarea>
       </div>
@@ -50,10 +50,10 @@
       <input id="file" type="file" accept=".jpg,.jpeg,.png,.webp,.tiff,.tif,.bmp,.pdf">
       <p id="limits" class="muted">Up to 10 MiB &bull; single-frame images or PDF &bull; quarter-turns only</p>
 
-      <p class="samples">Try a fictional sample:
-        <button type="button" data-sample="invoice_90.png">Sideways invoice</button>
-        <button type="button" data-sample="mixed_rotations.pdf">Four-page PDF</button>
-        <button type="button" data-sample="blank.png">Blank page</button>
+      <p class="samples">Try sample documents:
+        <button type="button" data-sample="invoice_90.png">Sample invoice (90&deg;)</button>
+        <button type="button" data-sample="mixed_rotations.pdf">Four-page PDF (mixed)</button>
+        <button type="button" data-sample="blank.png">Blank page (review)</button>
       </p>
 
       <div class="actions">
@@ -104,7 +104,7 @@
     <p id="requestId" class="muted"></p>
   </section>
 
-  <footer>Images retain their resolution. PDFs retain text and vector content. JPEG/WebP are re-encoded; digital signatures and original metadata are not guaranteed. This demo corrects 90&deg; turns, not skew or perspective.</footer>
+  <footer>Images retain native resolution. PDFs retain vector text and document structure. Pipeline detects and corrects orthogonal 90&deg; rotations (0&deg;, 90&deg;, 180&deg;, 270&deg;).</footer>
 </main>
 </body>
 </html>

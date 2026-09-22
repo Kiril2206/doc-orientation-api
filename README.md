@@ -1,29 +1,30 @@
-# Enterprise Document Orientation Correction Service
+# Document Orientation Correction Service
 
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
 [![ONNX Runtime](https://img.shields.io/badge/ONNX_Runtime-1.19+-005CED.svg)](https://onnxruntime.ai/)
 [![Gemini API](https://img.shields.io/badge/Gemini_API-3.5_Flash_Lite-4285F4.svg)](https://ai.google.dev/)
-[![AWS Ready](https://img.shields.io/badge/AWS-ECS_Fargate_%7C_App_Runner-FF9900.svg)](docs/AWS_DEPLOYMENT_RUNBOOK.md)
+[![AWS Ready](https://img.shields.io/badge/AWS-EC2_Free_Tier_%7C_App_Runner_%7C_ECS-FF9900.svg)](docs/AWS_DEPLOYMENT_RUNBOOK.md)
 [![Tests](https://img.shields.io/badge/Tests-140_Passed-success.svg)](tests/)
 
-A hardened, high-throughput microservice for automatic document orientation detection and correction (0°, 90°, 180°, 270°). Built for enterprise document ingestion pipelines, scanned paperwork, mobile camera uploads, and multi-page contract processing.
+A hardened, high-throughput microservice for automatic document orientation detection and correction ($0^\circ, 90^\circ, 180^\circ, 270^\circ$). Built for enterprise document ingestion pipelines, scanned paperwork, mobile camera uploads, and multi-page contract processing.
 
 ---
 
 ## Key Capabilities
 
-- **Lossless Multi-Page PDF Rotation**: Adjusts internal PDF page display matrices (`/Rotate`) in place without rasterizing or altering vector text, fonts, bookmarks, or digital signatures.
-- **Three Independent Pipelines**:
-  1. **Pure CV (Production Baseline)**: EfficientNet-B0 (384×384 letterboxed) via ONNX Runtime CPU. **Sub-35ms latency**, zero OCR dependency.
-  2. **Hybrid Pipeline (Verification)**: ResNet-18 (224×224) paired with RapidOCR text angle verification for ambiguous 0° vs 180° upside-down decisions.
-  3. **GenAI Multimodal (Zero-shot)**: Cloud-native fallback powered by Google Gemini (`gemini-3.5-flash-lite`) with two-stage title border analysis.
-- **AWS Production Hardening**:
-  - Pre-parsing HTTP request body limits (10 MB) preventing memory exhaustion before multipart decode.
-  - Dedicated single-worker executor protecting native C++ runtimes (RapidOCR, PyMuPDF, ONNX Runtime) from concurrency race conditions.
-  - Strict security headers (`CSP`, `nosniff`, `no-store`), request correlation IDs (`X-Request-Id`), and zero PII logging.
-  - Dedicated `/live` and `/ready` endpoints for AWS ALB target group health monitoring.
-  - Near-uniform / blank page abstention policy returning `X-Needs-Review: true`.
+- **Lossless Multi-Page PDF Rotation**: Adjusts internal PDF page display matrices (`/Rotate`) in place without rasterizing or altering vector text, fonts, bookmarks, or document structure.
+- **Three Independent Inference Pipelines**:
+  1. **Pure CV (Production Default)**: EfficientNet-B0 ($384 \times 384$ letterboxed) via ONNX Runtime CPU. **Sub-35ms latency**, zero external dependencies.
+  2. **Hybrid Pipeline (Text Verification)**: ResNet-18 ($224 \times 224$) paired with RapidOCR text-line direction verification for ambiguous $0^\circ$ vs $180^\circ$ upside-down decisions.
+  3. **GenAI Multimodal (Zero-shot)**: Cloud-native visual reasoning powered by Google Gemini (`gemini-3.5-flash-lite` with automated fallback to `gemini-3.5-flash`).
+- **Production Hardening & Reliability**:
+  - **Pre-Parsing Body Limits**: $10\text{ MB}$ upload guard rejects oversized payloads before multipart ingestion to prevent memory exhaustion.
+  - **Decompression Bomb Protection**: Input images exceeding $25,000,000$ pixels are rejected during decode.
+  - **Thread-Safe Process Isolation**: Single-worker architecture (`DocumentProcessor`) protects native C++ libraries (PyMuPDF, RapidOCR, ONNX Runtime) from concurrency race conditions.
+  - **Security Headers & Privacy**: Content Security Policy (`CSP`), `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`, request tracing (`X-Request-Id`), and zero PII logging.
+  - **Health Probes**: Dedicated `/live` (ALB liveness) and `/ready` (model warmup) endpoints.
+  - **Abstention Policy**: Blank and low-confidence pages are left unmodified with an explicit `X-Needs-Review: true` header.
 
 ---
 
@@ -31,59 +32,46 @@ A hardened, high-throughput microservice for automatic document orientation dete
 
 ```mermaid
 flowchart TD
-    Client["Client / Browser / Ingestion API"] --> ALB["AWS ALB / Reverse Proxy"]
-    ALB --> MW["DemoMiddleware\n(Rate Limit, Auth, Body Guard, CSP)"]
-    MW --> Route["FastAPI Route: /correct-orientation"]
-    Route --> Proc["DemoProcessor\n(Single-Worker Dedicated Thread)"]
+    Client["Client / Upstream Ingestion Service"] --> ALB["AWS ALB / Reverse Proxy"]
+    ALB --> MW["SecurityMiddleware\n(Rate Limiter, Auth, Body Guard, CSP)"]
+    MW --> Route["FastAPI: /correct-orientation"]
+    Route --> Proc["DocumentProcessor\n(Dedicated Worker Thread / Semaphore)"]
 
-    Proc --> Dec{"Format"}
-    Dec -- "PDF" --> PyMuPDF["PyMuPDF Stream Parser"]
-    Dec -- "Image" --> Pillow["Pillow Image Loader (25 Mpx Limit)"]
+    Proc --> FormatSwitch{"File Type"}
+    FormatSwitch -- "PDF" --> PyMuPDF["PyMuPDF Parser\n(Page-by-Page Extraction)"]
+    FormatSwitch -- "Image" --> Pillow["Pillow Loader\n(25 Mpx Limit, EXIF Normalization)"]
 
-    PyMuPDF --> PipelineRouter{"Inference Mode"}
-    Pillow --> PipelineRouter
+    PyMuPDF --> Router{"Pipeline Selector"}
+    Pillow --> Router
 
-    PipelineRouter -- "mode=pure" --> V2["Model v2: EfficientNet-B0\n(384x384 Letterbox, ONNX CPU)"]
-    PipelineRouter -- "mode=hybrid" --> V1["Model v1: ResNet-18 (224x224)\n+ RapidOCR Ambiguity Verifier"]
-    PipelineRouter -- "mode=genai" --> Gemini["Google Gemini 3.5 Flash Lite\n(Structured Visual Prompting)"]
+    Router -- "mode=pure (default)" --> V2["Model v2: EfficientNet-B0\n(384x384 Letterbox, ONNX CPU)"]
+    Router -- "mode=hybrid" --> V1["Model v1: ResNet-18 (224x224)\n+ RapidOCR Direction Verification"]
+    Router -- "mode=genai" --> Gemini["Google Gemini Multimodal API\n(Structured JSON Schema + Auto-Fallback)"]
 
-    V2 --> OutWriter["Transform Matrix / Affine Transpose"]
-    V1 --> OutWriter
-    Gemini --> OutWriter
+    V2 --> Transform["Lossless Transformation\n(Pillow Transpose / PDF /Rotate Catalog)"]
+    V1 --> Transform
+    Gemini --> Transform
 
-    OutWriter --> Resp["HTTP 200 OK + Corrected Document\nHeaders: X-Original-Orientation, X-Rotation-Applied, X-Needs-Review"]
+    Transform --> Out["HTTP 200 OK + Corrected Document\nHeaders: X-Original-Orientation, X-Rotation-Applied, X-Needs-Review"]
 ```
 
 ---
 
-## Empirical Benchmark & Pipeline Comparison
+## Pipeline Comparison & Benchmark
 
 Evaluated on the held-out DocLayNet v1.2 and CORD test benchmark (4,093 unique multi-domain document pages):
 
 | Metric | Pure CV (v2) | Hybrid (v1 + OCR) | GenAI (Gemini 3.5) |
 | :--- | :--- | :--- | :--- |
 | **Model Backbone** | EfficientNet-B0 | ResNet-18 + RapidOCR | Gemini 3.5 Flash Lite |
-| **Input Resolution** | 384 × 384 (letterboxed) | 224 × 224 (letterboxed) | Dynamic (max side 1600px) |
-| **Test Accuracy** | **98.2%** | 97.4% | **99.1%** |
-| **0° vs 180° Confusion** | < 1.1% | < 0.8% (OCR override) | < 0.5% |
-| **Mean Latency (CPU)** | **28 ms / page** | 185 ms / page (when OCR invoked) | 780 ms / page (remote API) |
+| **Input Resolution** | $384 \times 384$ (letterboxed) | $224 \times 224$ (letterboxed) | Dynamic (max 1600px Lanczos) |
+| **Test Accuracy** | **97.68%** | 97.77% | **99.1%** |
+| **0° vs 180° Confusion** | < 1.1% | **< 0.8%** (OCR override) | < 0.5% |
+| **Mean Latency (CPU)** | **28 ms / page** | ~185 ms / page (when OCR invoked) | ~780 ms / page (remote API) |
 | **Throughput (1 vCPU)** | **~35 pages / sec** | ~5.4 pages / sec | Bound by API rate limits |
-| **Dependencies** | ONNX Runtime only | ONNX Runtime + RapidOCR | HTTP client (no weights) |
-| **External Costs** | \$0.00 | \$0.00 | ~$0.0001 / page |
+| **Dependencies** | ONNX Runtime only | ONNX Runtime + RapidOCR | HTTP client (`httpx`) |
+| **Operational Cost** | **$0.00** | **$0.00** | ~$0.0001 / page |
 | **Recommended Use** | High-volume production | Text-heavy edge cases | Zero-weights deployment / complex layouts |
-
----
-
-## Production Security & AWS Guardrails
-
-Directly addressing the AWS Readiness Review (`docs/AWS_READINESS_REVIEW_2026_09_22.md`):
-
-1. **Pre-Parsing Body Limits**: Requests with `Content-Length > 10 MB` are rejected with `HTTP 413` *before* Starlette attempts to stream or parse multipart payloads into memory.
-2. **Dimension Bomb Protection**: Images exceeding 25,000,000 pixels (~5000×5000) are rejected with `HTTP 413` during decode to prevent heap exhaustion.
-3. **Multipage TIFF Safety**: Animated images and multi-page TIFF uploads return `HTTP 400` with clear guidance to use PDF.
-4. **Isolated Inference Execution**: All image transformations and ONNX sessions run inside a single-thread executor with timeouts (`APP_PROCESSING_TIMEOUT_SECONDS=45`). Concurrent excess uploads receive `HTTP 429` with `Retry-After: 2`.
-5. **Zero-PII Structured Logging**: Request logs record `method`, `path`, `status`, `duration_ms`, and `x-request-id`. Client filenames are never logged or stored on disk.
-6. **Authentication & Rate Limiting**: Token-bucket rate limiter (30 req/min) and HTTP Basic Auth protect public interview demo deployments.
 
 ---
 
@@ -93,14 +81,14 @@ Directly addressing the AWS Readiness Review (`docs/AWS_READINESS_REVIEW_2026_09
 
 ```powershell
 # Clone repository
-git clone https://github.com/your-username/doc-orientation-api.git
+git clone https://github.com/Kiril2206/doc-orientation-api.git
 cd doc-orientation-api
 
 # Create and activate virtual environment
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 
-# Install core runtime dependencies
+# Install runtime dependencies
 pip install -r requirements.txt
 ```
 
@@ -118,27 +106,14 @@ APP_REQUIRE_AUTH=false
 ### 3. Launch Application
 
 ```powershell
-# Run using the automated launcher script
+# Launch via automated PowerShell script
 .\start-app.ps1
 
 # Or run directly via uvicorn
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open **`http://127.0.0.1:8000/`** to interact with the demo UI.
-
----
-
-## Interactive Web UI & Bundled Samples
-
-The UI (`app/static/index.html`) is completely self-contained with zero external CDN dependencies:
-- **Instant Preview**: Side-by-side comparison of original vs. corrected document.
-- **Pipeline Selector**: 1-click toggle between **Pure CV**, **Hybrid**, and **GenAI**.
-- **Request Cancellation**: Abort in-flight uploads gracefully using `AbortController`.
-- **Pre-packaged Safe Test Documents**:
-  - `Sample Invoice (90°)`: Fictional invoice rotated 90° clockwise.
-  - `Multi-Page Report (Mixed)`: 4-page PDF with 0°, 90°, 180°, and 270° orientations.
-  - `Blank Page (Review)`: Near-uniform document testing the `X-Needs-Review` flag.
+Open **`http://127.0.0.1:8000/`** to interact with the web interface.
 
 ---
 
@@ -146,8 +121,8 @@ The UI (`app/static/index.html`) is completely self-contained with zero external
 
 ### Health & Monitoring Endpoints
 
-- **`GET /live`**: Process liveness probe for AWS ALB target groups. Returns `{"status":"alive"}` (HTTP 200). Bypasses auth and does not load models.
-- **`GET /ready`**: Readiness probe. Validates that the active inference model is loaded and warmed up with finite logits.
+- **`GET /live`**: ALB target group liveness probe. Returns `{"status":"alive"}` (HTTP 200). Bypasses authentication and model checks.
+- **`GET /ready`**: Readiness probe. Verifies that the active inference models are loaded and warmed up with finite logits.
 - **`GET /health`**: Diagnostic metadata detailing active models, memory limits, and timeouts.
 
 ### Document Correction Endpoint
@@ -157,7 +132,7 @@ The UI (`app/static/index.html`) is completely self-contained with zero external
 #### Form Parameters
 | Parameter | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
-| `file` | Binary | Yes | Upload image (`.png`, `.jpg`, `.jpeg`, `.webp`, `.bmp`) or `.pdf`. |
+| `file` | Binary | Yes | Upload image (`.png`, `.jpg`, `.jpeg`, `.webp`, `.bmp`, `.tiff`) or `.pdf`. |
 | `mode` | String | No | `pure` (default), `hybrid`, or `genai`. |
 | `genai_prompt`| String | No | Optional contextual prompt for Gemini (max 2,000 chars). |
 
@@ -170,9 +145,10 @@ The UI (`app/static/index.html`) is completely self-contained with zero external
 - `X-Page-Results`: JSON breakdown of decisions for every page in a PDF.
 - `X-Request-Id`: Unique UUID for request tracing.
 
-#### cURL Example
+#### cURL Examples
+
 ```bash
-# Correct a 90° rotated invoice using Pure CV (sub-30ms)
+# Correct a 90° rotated invoice using Pure CV (sub-35ms)
 curl -X POST "http://localhost:8000/correct-orientation" \
   -F "file=@invoice.png" \
   -F "mode=pure" \
@@ -191,30 +167,22 @@ curl -X POST "http://localhost:8000/correct-orientation" \
 
 Full step-by-step instructions are available in [**`docs/AWS_DEPLOYMENT_RUNBOOK.md`**](docs/AWS_DEPLOYMENT_RUNBOOK.md).
 
-### Quick Deployment Options
+### Deployment Options
 
-1. **AWS App Runner (Fastest Demo Deployment)**:
-   - Connect ECR image to App Runner.
-   - Sizing: `2 vCPU, 4 GB RAM`.
-   - Health check path: `/live`.
-   - Zero VPC configuration; automated HTTPS endpoint in < 5 minutes.
-
-2. **AWS ECS Fargate + ALB (Enterprise Infrastructure as Code)**:
-   - Deploy using the production CloudFormation template:
-   ```bash
-   aws cloudformation deploy \
-     --template-file aws/cloudformation-template.yml \
-     --stack-name doc-orientation-prod \
-     --capabilities CAPABILITY_IAM \
-     --parameter-overrides \
-         ImageUri="<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/doc-orientation-api:latest" \
-         DemoPasswordParameterArn="arn:aws:ssm:<REGION>:<ACCOUNT_ID>:parameter/doc-orientation/demo-password" \
-         GeminiApiKeyParameterArn="arn:aws:ssm:<REGION>:<ACCOUNT_ID>:parameter/doc-orientation/gemini-api-key"
-   ```
+1. **Option 1: AWS EC2 Free Tier (100% Free - $0.00/mo)**:
+   - Launch an Amazon Linux 2023 `t2.micro` or `t3.micro` instance.
+   - Paste [`aws/ec2-userdata.sh`](aws/ec2-userdata.sh) into **User Data**.
+   - Fully automated provisioning: installs dependencies, configures 2 GB swap, clones the repository, and registers the systemd service on port 80.
+2. **Option 2: AWS App Runner (Serverless Container)**:
+   - Connect ECR image to App Runner with 2 vCPU / 4 GB RAM.
+   - Set health check path to `/live`.
+3. **Option 3: AWS ECS Fargate + ALB (CloudFormation)**:
+   - Enterprise deployment with isolated VPC subnets and Application Load Balancer using [`aws/cloudformation-template.yml`](aws/cloudformation-template.yml).
 
 ### Local Docker Testing
+
 ```bash
-# Build and run the hardened container locally
+# Build and run container locally
 docker compose up --build
 ```
 
@@ -225,23 +193,22 @@ docker compose up --build
 The test suite contains **140 automated tests** covering unit behavior, integration pipelines, stream safety, and AWS safeguards:
 
 ```powershell
-# Run the complete test suite
+# Run complete test suite
 .\.venv\Scripts\python.exe -m pytest -v
-```
 
-```
-====================== 140 passed, 2 warnings in 20.24s =======================
+# Run smoke test on active deployment
+python scripts/smoke_test.py
 ```
 
 ---
 
 ## Documentation Index
 
-- [**AWS Deployment Runbook**](docs/AWS_DEPLOYMENT_RUNBOOK.md): Sizing rationale, IAM policies, App Runner, ECS Fargate, CloudFormation, and cost models.
-- [**AWS Readiness Review**](docs/AWS_READINESS_REVIEW_2026_09_22.md): Senior technical review and mitigation audit.
-- [**Model v2 Architecture**](docs/MODEL_V2.md): Details on EfficientNet-B0 training, letterboxing, and evaluation metrics.
+- [**AWS Deployment Runbook**](docs/AWS_DEPLOYMENT_RUNBOOK.md): EC2 Free Tier setup, App Runner, ECS Fargate, CloudFormation, and cost models.
+- [**Model v2 Architecture**](docs/MODEL_V2.md): EfficientNet-B0 vs ResNet-18, letterbox preprocessing, and ONNX benchmarks.
 - [**GenAI Gemini Guide**](docs/GENAI.md): Multimodal visual prompting, schema enforcement, and fallback behavior.
-- [**Dataset Manifest & Provenance**](docs/DATASETS.md): DocLayNet v1.2 & CORD dataset curation, licensing, and clean splitting.
+- [**Dataset Manifest & Provenance**](docs/DATASETS.md): DocLayNet v1.2, CORD v2, and multilingual synthetic dataset curation.
+- [**AWS Readiness Review**](docs/AWS_READINESS_REVIEW_2026_09_22.md): Senior technical review and mitigation audit.
 
 ---
 

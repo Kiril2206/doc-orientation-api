@@ -1,4 +1,4 @@
-"""End-to-end verification script for demo readiness and AWS endpoints."""
+"""End-to-end verification script for deployment readiness and health endpoints."""
 import sys
 from pathlib import Path
 
@@ -72,7 +72,7 @@ def run_smoke_test():
         assert res_blank.headers.get("X-Needs-Review") == "true"
         print("  -> Passed: X-Needs-Review=true, decision source preserved.")
 
-    print("\nALL SMOKE TESTS PASSED! APPLICATION IS 100% READY FOR DEMONSTRATION AND DEPLOYMENT.")
+    print("\nALL SMOKE TESTS PASSED! ALL PIPELINES AND HEALTH ENDPOINTS OPERATIONAL.")
 
 
 if __name__ == "__main__":

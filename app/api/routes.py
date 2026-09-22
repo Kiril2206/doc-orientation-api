@@ -19,7 +19,7 @@ from app.services.image_processing import (
     get_output_format,
 )
 from app.services.pdf_processing import correct_pdf
-from app.services.processing import DemoProcessor, ProcessingBusyError, correct_image
+from app.services.processing import DocumentProcessor, DemoProcessor, ProcessingBusyError, correct_image
 
 logger = logging.getLogger(__name__)
 
@@ -222,7 +222,7 @@ _processor = None
 def get_processor():
     global _processor
     if _processor is None:
-        _processor = DemoProcessor()
+        _processor = DocumentProcessor()
     return _processor
 
 

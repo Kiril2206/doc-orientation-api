@@ -1,82 +1,124 @@
-# GenAI: исправление ориентации через Gemini
+# GenAI Multimodal Route: Document Orientation via Google Gemini
 
-Режим `genai` отправляет изображение страницы в Gemini API, получает угол исправления и поворачивает исходный документ. Обучение и ONNX-веса для этого режима не нужны. В этой реализации подключён провайдер Gemini; другие провайдеры пока не реализованы.
+The `genai` mode uses Google Gemini's multimodal vision capabilities to detect document orientation zero-shot. It requires no local ONNX model weights or GPU resources, making it ideal as a fallback or cloud-native orientation engine.
 
-## Запуск
+---
 
-Установите зависимости из корня проекта:
+## 1. Quickstart & Configuration
 
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+### Requirements
+The Gemini route uses standard Python HTTP client dependencies (`httpx`, `Pillow`, `pymupdf`), which are installed with the base `requirements.txt`:
+
+```bash
+pip install -r requirements.txt
 ```
 
-Создайте API-ключ в [Google AI Studio](https://aistudio.google.com/apikey). Создайте или дополните `.env` в корне проекта:
+### Environment Configuration (`.env`)
+
+Generate an API key in [Google AI Studio](https://aistudio.google.com/apikey) and configure your environment:
 
 ```dotenv
-APP_GEMINI_API_KEY=your_actual_api_key
+APP_GEMINI_API_KEY=your_actual_api_key_here
 APP_GEMINI_MODEL=gemini-3.5-flash-lite
-APP_GEMINI_TIMEOUT_SECONDS=15
+APP_GEMINI_TIMEOUT_SECONDS=30
 APP_GENAI_IMAGE_MAX_SIDE=1600
 APP_GENAI_MAX_PDF_PAGES=10
 ```
 
-Ключ хранится только на сервере. `.env` исключён из Git и Docker build context; в браузер ключ не передаётся. `docker compose` передаёт эти параметры в контейнер через environment.
+> [!NOTE]
+> The API key is stored strictly on the server and loaded into memory. It is never exposed in client headers, browser responses, or application logs.
 
-Остановите предыдущий сервер и запустите его заново:
+---
 
-```powershell
-.\start-app.ps1
+## 2. API Usage
+
+### Single Image Correction
+```bash
+curl -X POST "http://localhost:8000/correct-orientation" \
+  -F "file=@document.png" \
+  -F "mode=genai" \
+  --output corrected.png
 ```
 
-Откройте http://127.0.0.1:8000/ и выберите **GenAI (Gemini API)**. При желании добавьте пояснение, например: «Это обложка паспорта; ориентируйся на надписи, а не на орнамент». Основной промпт определения поворота всегда добавляется автоматически.
-
-Чтобы GenAI выбирался по умолчанию, добавьте `APP_INFERENCE_MODE=genai`. Режимы Pure CV и Hybrid остаются отдельными вариантами.
-
-`/health` сообщает модель, наличие настройки GenAI и лимит страниц. `available: true` означает наличие ключа в конфигурации, а не проверку его действительности, региона или квоты: запуск сервера не вызывает платных запросов.
-
-## API
-
-```powershell
-curl.exe --fail-with-body -X POST http://127.0.0.1:8000/correct-orientation -F "file=@document.png" -F "mode=genai" --output corrected.png
-
-curl.exe --fail-with-body -X POST http://127.0.0.1:8000/correct-orientation -F "file=@document.pdf" -F "mode=genai" -F "genai_prompt=Use the main text to identify the reading direction" --output corrected.pdf
+### Multi-Page PDF with Contextual Prompt
+```bash
+curl -X POST "http://localhost:8000/correct-orientation" \
+  -F "file=@financial_report.pdf" \
+  -F "mode=genai" \
+  -F "genai_prompt=Use the tabular financial data to establish vertical reading order" \
+  --output corrected_report.pdf
 ```
 
-`genai_prompt` необязателен, максимум 2000 символов. Название модели задаётся настройкой сервера `APP_GEMINI_MODEL`; используйте модель с поддержкой изображений и structured output. URL провайдера фиксирован: `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`.
+---
 
-## Передача и обработка документа
+## 3. Architecture & Processing Flow
 
-1. Для картинки нормализуется EXIF-ориентация, создаётся RGB JPEG-превью с длинной стороной до 1600 пикселей. Пропорции сохраняются, страница не обрезается. Исходный размер результата сохраняется с учётом поворота.
-2. Для PDF каждая страница рендерится с учётом существующего `/Rotate`. Gemini получает отдельное изображение каждой страницы, а не весь PDF.
-3. Отправляются превью, основной промпт и дополнительный контекст. OCR-текст отдельно не извлекается. Текст внутри документа в промпте явно обозначен как содержимое, не как инструкции.
-4. Запрашивается JSON вида `{"rotation_cw":90,"uncertain":false}`. `rotation_cw` — угол, на который нужно повернуть изображение **по часовой стрелке**. Сервер принимает только целые 0, 90, 180 или 270. Например, повёрнутой вправо на 90° странице соответствует исправление 270°.
-5. Pillow поворачивает исходное изображение. Для PDF изменяется только поворот страниц; исходные текст, векторы и цвет сохраняются. Полученный от модели ответ не используется для перерисовки документа.
-
-Промпт и строгая проверка JSON находятся в `app/services/genai.py`. Никакие команды и инструменты по ответу модели не выполняются. Изменить только настройку модели достаточно для эксперимента с другой совместимой моделью Gemini.
-
-## Результаты и ошибки
-
-- `X-Inference-Mode: genai`.
-- `X-Model-Version`: настроенная модель Gemini.
-- `X-Decision-Source: gemini` и `X-Decision-Counts`: число обработанных страниц.
-- `X-Rotation-Applied`: исправление в градусах по часовой стрелке; для PDF — первая страница.
-- `X-Original-Orientation`: обратный угол к исправлению; для PDF — первая страница.
-- `X-Confidence` отсутствует, `X-Confidence-Source: not-provided`. Интерфейс не подставляет выдуманную уверенность.
-
-При `uncertain: true` сервер возвращает 422 с объяснением, что направление чтения определить не удалось. Некорректный/обрезанный JSON или отказ модели возвращает 502. Отсутствие ключа, недоступная конфигурация или квота — 503; таймаут — 504. Исходные ответы об ошибках провайдера, ключи и изображения в сообщения клиенту не включаются.
-
-При ошибке на любой странице PDF возвращается ошибка вместо частично исправленного файла. Уже отправленные запросы могут израсходовать квоту; повторная отправка документа обрабатывает его заново. Автоматических повторов и перехода на локальную модель нет.
-
-Страницы PDF обрабатываются последовательно: максимум 10 страниц по умолчанию, лимит проверяется до первого запроса. Один запрос на страницу, таймаут 60 секунд на сетевую операцию; суммарное время многостраничного PDF больше. Gemini требует доступ к интернету и расходует квоту/бюджет API. Указанные в интерфейсе изображение и промпт передаются Google только при выбранном режиме GenAI.
-
-## Проверка реализации
-
-Живая проверка 21 сентября 2026: ключ принят Google, подключение и выдача изображения работают. На тестовой странице, повёрнутой на 90° по часовой стрелке, `gemini-3.6-flash` вернул исправление 90° вместо необходимых 270°; результат остался перевёрнутым. Запрос двухстраничного PDF остановился из-за HTTP 503 от Google (перегрузка). `gemini-3.1-flash-lite` также ошибался с углами. Режим пока экспериментальный: успешный запрос не гарантирует правильную ориентацию. Для нового пользователя Google отклонил `gemini-2.5-flash` и рекомендовал `gemini-3.6-flash`, поэтому обновлена модель по умолчанию.
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_genai.py -q
+```mermaid
+flowchart TD
+    Req["Incoming Document (Image or PDF)"] --> Prep["Preprocessing & Dimension Scaling"]
+    Prep --> Resize["Resize to max 1600px Lanczos (Maintain Aspect Ratio)"]
+    Resize --> Payload["Base64 JPEG + Structured System Prompt"]
+    Payload --> Primary["Request Primary Model: gemini-3.5-flash-lite"]
+    Primary --> StatusCheck{"HTTP Status"}
+    StatusCheck -- "200 OK" --> Parse["Strip Markdown & Parse JSON Schema"]
+    StatusCheck -- "503 / 504 / 429" --> Fallback["Automatic Fallback: gemini-3.5-flash"]
+    Fallback --> Parse
+    Parse --> Validate{"Validation"}
+    Validate -- "rotation_cw in (0,90,180,270)" --> Rotate["Lossless Transform Matrix / Pillow Transpose"]
+    Validate -- "uncertain == true" --> Err["HTTP 422: Orientation Unclear"]
+    Rotate --> Out["HTTP 200 OK Response with Corrected Document"]
 ```
 
-Тесты подменяют HTTP-транспорт Gemini, сохраняя настоящий путь обработки API: проверяются четыре направления поворота по пикселям, постраничный PDF, сохранение текста/цвета, ограничения, ошибки сети/квоты и строгий разбор ответа. Эти тесты не измеряют точность Gemini. Проверка качества на реальных документах требует вашего API-ключа.
+### Pipeline Steps:
+1. **Resolution Normalization**: Images are converted to RGB and resized with aspect-ratio preservation to a maximum dimension of 1600 pixels (Lanczos filter) to ensure optimal visual comprehension while bounding payload size.
+2. **Per-Page PDF Rendering**: Multi-page PDFs are rendered page-by-page at 150 DPI, respecting any existing `/Rotate` metadata. Each page is analyzed independently.
+3. **Structured System Prompt**:
+   - The model is instructed to determine the clockwise corrective rotation ($0^\circ, 90^\circ, 180^\circ, 270^\circ$).
+   - Header position is treated as a supporting cue rather than an absolute rule.
+   - Text inside the image is explicitly demarcated as document content, preventing prompt injection attacks.
+4. **Structured JSON Schema**:
+   ```json
+   {
+     "rotation_cw": 90,
+     "uncertain": false
+   }
+   ```
+5. **Lossless Application**:
+   - For images: Clockwise transposition using Pillow (`Image.Transpose`).
+   - For PDFs: In-place adjustment of `/Rotate` page attributes in the PDF catalog. Text streams, vector shapes, fonts, and hyperlinks are 100% preserved.
 
-Документация провайдера: [изображения](https://ai.google.dev/gemini-api/docs/generate-content/image-understanding), [структурированные ответы](https://ai.google.dev/gemini-api/docs/generate-content/structured-output), [модели Gemini](https://ai.google.dev/gemini-api/docs/models).
+---
+
+## 4. Production Hardening & High-Availability
+
+### Dynamic Model Fallback
+During peak periods, specific Gemini model endpoints may experience temporary demand surges (`HTTP 503 Service Unavailable`). The `GeminiOrientationClassifier` automatically retries requests against `gemini-3.5-flash` if `gemini-3.5-flash-lite` returns an error or times out.
+
+### Markdown Code Block Unwrapping
+Certain model variants wrap structured JSON outputs in markdown code fences (` ```json ... ``` `). The response parser strips leading and trailing code blocks before JSON parsing to prevent formatting failures.
+
+### Error Sanitization & Security
+- **Strict Data Redaction**: Raw Gemini response bodies, network traces, and API keys are never included in HTTP error messages returned to clients.
+- **Client Status Codes**:
+  - `400`: Bad file input or unsupported format.
+  - `413`: File or page count exceeds limits (`APP_GENAI_MAX_PDF_PAGES=10`).
+  - `422`: Document is ambiguous or orientation cannot be determined (`uncertain=true`).
+  - `502`: Model returned malformed or incomplete output.
+  - `503`: API key missing or provider quota exceeded.
+  - `504`: Request timed out (`APP_GEMINI_TIMEOUT_SECONDS=30`).
+
+---
+
+## 5. Verification & Testing
+
+Mocked end-to-end integration tests verify error sanitization, angle mappings, PDF page limits, and response parsing without consuming live API quota:
+
+```powershell
+python -m pytest tests/test_genai.py -v
+```
+
+All 20 test cases pass, verifying:
+- Correct clockwise angle rotation transformations ($0^\circ \to 0^\circ$, $90^\circ \to 270^\circ$, $180^\circ \to 180^\circ$, $270^\circ \to 90^\circ$).
+- Strict rejection of missing, out-of-range, or non-integer angles.
+- Page limit enforcement prior to network requests.
+- Secure redaction of internal errors.

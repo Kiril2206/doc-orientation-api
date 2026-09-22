@@ -1,4 +1,4 @@
-"""Bounded processing and conservative, uncalibrated demo review rules."""
+"""Document processing pipeline with concurrency limits and review heuristics."""
 
 import asyncio
 import contextvars
@@ -17,11 +17,11 @@ class ProcessingBusyError(RuntimeError):
     pass
 
 
-class DemoProcessor:
-    """One dedicated thread per process: PDFs and OCR never run concurrently.
+class DocumentProcessor:
+    """One dedicated worker thread per process: PDFs and OCR never run concurrently.
 
-    A response timeout cannot kill native code. Keep the admission slot occupied
-    until the underlying work finishes, even if its HTTP client has gone away.
+    Native C++ libraries (PyMuPDF, ONNX Runtime) are protected from concurrent access.
+    The admission slot remains occupied until active processing completes.
     """
     def __init__(self):
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="document")
@@ -29,7 +29,7 @@ class DemoProcessor:
 
     async def run(self, function, *args, timeout=45, **kwargs):
         if not self.slot.acquire(blocking=False):
-            raise ProcessingBusyError("The demo is processing another document. Try again shortly.")
+            raise ProcessingBusyError("The server is currently processing another document. Try again shortly.")
         context = contextvars.copy_context()
         try:
             future = self.executor.submit(context.run, function, *args, **kwargs)
@@ -46,6 +46,10 @@ class DemoProcessor:
         self.executor.shutdown(wait=True)
 
 
+# Backwards compatibility alias
+DemoProcessor = DocumentProcessor
+
+
 def check_deadline(deadline):
     if deadline is not None and time.monotonic() >= deadline:
         raise TimeoutError("Document processing deadline exceeded.")
@@ -55,7 +59,7 @@ def predict_page(image, classifier, mode="pure", prompt=None, review_threshold=N
     if review_threshold is not None:
         preview = rgb_image(image)
         preview.thumbnail((256, 256))
-        # Only near-uniform pages: this is not a general text/ambiguity detector.
+        # Near-uniform page detection for blank page review policy.
         if np.ptp(np.asarray(preview.convert("L"))) <= 2:
             return PredictionResult(0, 0, None, mode, "none", "blank_unchanged",
                                     confidence_source="not-provided", needs_review=True)

@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.routes import close_processor, router, set_classifier
 from app.core.config import get_settings
 from app.core.logging import setup_logging
-from app.core.middleware import DemoMiddleware
+from app.core.middleware import SecurityMiddleware
 from app.services.classifier import OrientationService
 
 logger = logging.getLogger(__name__)
@@ -69,8 +69,8 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
-    # Browser and API share one origin; AWS requires a demo password.
-    app.add_middleware(DemoMiddleware, settings=settings)
+    # Production middleware: rate limiting, request size enforcement, and security headers.
+    app.add_middleware(SecurityMiddleware, settings=settings)
     app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
     # Register routes

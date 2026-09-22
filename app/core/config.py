@@ -16,11 +16,8 @@ class Settings(BaseSettings):
     inference_mode: Literal["pure", "hybrid", "genai"] = "pure"
     gemini_api_key: SecretStr = SecretStr("")
     gemini_model: str = Field(default="gemini-3.5-flash-lite", pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-    gemini_timeout_seconds: float = Field(default=15, gt=0, le=30)
-    gemini_model: str = Field(default="gemini-3.5-flash", pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
     gemini_timeout_seconds: float = Field(default=30, gt=0, le=60)
     genai_image_max_side: int = Field(default=1600, ge=384, le=4096)
-    genai_max_pdf_pages: int = Field(default=3, ge=1, le=10)
     genai_max_pdf_pages: int = Field(default=10, ge=1, le=20)
     model_path_v1: str = str(MODEL_DIR / "orientation_model.onnx")
     model_path_v2: str = str(MODEL_DIR / "orientation_model_v2.onnx")

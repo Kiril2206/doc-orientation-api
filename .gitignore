@@ -21,8 +21,10 @@ env/
 .DS_Store
 Thumbs.db
 
-# Environment
+# Environment & Logs
 .env
+*.log
+output/*.log
 
 # Training artifacts (large files)
 training/output/

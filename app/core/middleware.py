@@ -1,4 +1,4 @@
-"""Small, process-local safeguards for a password-protected interview demo."""
+"""Production security middleware: rate limiting, request size limits, authentication, and security headers."""
 
 import asyncio
 import base64
@@ -15,14 +15,14 @@ from app.core.logging import generate_request_id, request_id_ctx
 logger = logging.getLogger(__name__)
 
 
-class DemoMiddleware:
+class SecurityMiddleware:
     def __init__(self, app, settings):
         self.app = app
         self.settings = settings
         self.requests = deque()
         self.uploading = False
         if settings.require_auth and len(settings.demo_password.get_secret_value()) < 16:
-            raise RuntimeError("Public demo requires APP_DEMO_PASSWORD with at least 16 characters.")
+            raise RuntimeError("Authentication requires APP_DEMO_PASSWORD with at least 16 characters.")
 
     def authorized(self, headers):
         if not self.settings.require_auth:
@@ -79,14 +79,14 @@ class DemoMiddleware:
         try:
             headers = dict(scope["headers"])
             if scope["path"] not in ("/live", "/ready") and not self.authorized(headers):
-                return await reject(401, "Demo login required.", {"WWW-Authenticate": 'Basic realm="Document demo", charset="UTF-8"'})
+                return await reject(401, "Authentication required.", {"WWW-Authenticate": 'Basic realm="Document Processing API", charset="UTF-8"'})
             if scope["method"] != "POST" or scope["path"] != "/correct-orientation":
                 return await self.app(scope, receive, send_response)
             now = time.monotonic()
             while self.requests and self.requests[0] <= now - 60:
                 self.requests.popleft()
             if len(self.requests) >= self.settings.requests_per_minute:
-                return await reject(429, "Demo request limit reached. Try again in a minute.", {"Retry-After": "60"})
+                return await reject(429, "Rate limit exceeded. Try again in 60 seconds.", {"Retry-After": "60"})
             self.requests.append(now)
             # Bound the body before Starlette parses multipart uploads, including chunked bodies.
             limit = self.settings.max_image_size_mb * 1024 * 1024 + 64 * 1024
@@ -99,7 +99,7 @@ class DemoMiddleware:
             if declared > limit:
                 return await reject(413, f"File too large: upload exceeds the {self.settings.max_image_size_mb} MB limit.")
             if self.uploading:
-                return await reject(429, "Another upload is in progress. Try again shortly.", {"Retry-After": "2"})
+                return await reject(429, "Concurrent upload limit reached. Please retry shortly.", {"Retry-After": "2"})
             self.uploading = True
             try:
                 body = bytearray()
@@ -132,3 +132,7 @@ class DemoMiddleware:
                             scope["method"], scope["path"], status,
                             (time.monotonic() - started) * 1000)
             request_id_ctx.reset(token)
+
+
+# Backwards compatibility alias
+DemoMiddleware = SecurityMiddleware

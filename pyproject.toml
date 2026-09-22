@@ -1,7 +1,7 @@
 [project]
 name = "doc-orientation-api"
-version = "1.0.0"
-description = "Document orientation correction API using fine-tuned ResNet-18"
+version = "2.1.0"
+description = "High-performance document orientation detection and correction microservice with Pure CV, Hybrid, and GenAI pipelines"
 requires-python = ">=3.10"
 
 [tool.pytest.ini_options]

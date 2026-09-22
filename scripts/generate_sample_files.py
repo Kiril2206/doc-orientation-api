@@ -1,4 +1,4 @@
-"""Generate safe, professional synthetic sample documents for UI demonstration."""
+"""Generate synthetic sample documents for automated testing and UI previews."""
 import os
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont

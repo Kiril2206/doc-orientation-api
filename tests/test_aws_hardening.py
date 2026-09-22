@@ -204,9 +204,9 @@ def test_concurrency_busy_returns_429(monkeypatch, client):
     from app.services import processing
 
     async def mock_busy_run(self, function, *args, **kwargs):
-        raise ProcessingBusyError("The demo is processing another document. Try again shortly.")
+        raise ProcessingBusyError("The server is currently processing another document. Try again shortly.")
 
-    monkeypatch.setattr(processing.DemoProcessor, "run", mock_busy_run)
+    monkeypatch.setattr(processing.DocumentProcessor, "run", mock_busy_run)
 
     img = Image.new("RGB", (50, 50), color="white")
     buf = io.BytesIO()
@@ -217,7 +217,7 @@ def test_concurrency_busy_returns_429(monkeypatch, client):
         files={"file": ("test.png", buf.getvalue(), "image/png")},
     )
     assert response.status_code == 429
-    assert "The demo is processing another document" in response.json()["detail"]
+    assert "currently processing another document" in response.json()["detail"]
 
 
 def test_pre_parsing_size_limit_rejection(client):
