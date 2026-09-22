@@ -48,7 +48,14 @@ def parse_rotation(payload):
         if len(candidates) != 1 or candidates[0].get("finishReason") != "STOP":
             raise ValueError("Missing complete candidate")
         parts = candidates[0]["content"]["parts"]
-        text = "".join(p["text"] for p in parts if "text" in p and not p.get("thought"))
+        text = "".join(p["text"] for p in parts if "text" in p and not p.get("thought")).strip()
+        if text.startswith("```"):
+            lines = text.splitlines()
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].startswith("```"):
+                lines = lines[:-1]
+            text = "\n".join(lines).strip()
         result = json.loads(text)
         if not isinstance(result, dict) or set(result) != {"rotation_cw", "uncertain"}:
             raise ValueError("Invalid response keys")
@@ -103,30 +110,58 @@ class GeminiOrientationClassifier:
             ]}],
             "generationConfig": generation,
         }
-        try:
-            response = self._client.post(f"models/{self.model_version}:generateContent", json=body)
-        except httpx.TimeoutException:
-            raise GenAIError("Gemini request timed out. Try again or use a local mode.", 504) from None
-        except httpx.RequestError:
-            raise GenAIError("Could not connect to Gemini. Check the server network connection.") from None
-        if response.status_code != 200:
-            logger.warning("Gemini request failed: HTTP %d", response.status_code)
-            if response.status_code in (401, 403):
-                raise GenAIError("Gemini rejected the API key or access. Check the server configuration.", 503)
-            if response.status_code == 429:
-                raise GenAIError("Gemini quota or rate limit reached. Check the API quota and try later.", 503)
-            if response.status_code in (400, 404):
-                raise GenAIError("Gemini rejected the configuration. Check the API key, model and region.", 503)
+        models_to_try = [self.model_version]
+        fallback = "gemini-3.5-flash" if self.model_version != "gemini-3.5-flash" else "gemini-3.5-flash-lite"
+        if fallback not in models_to_try:
+            models_to_try.append(fallback)
+
+        response = None
+        last_error = None
+        used_model = self.model_version
+
+        for model in models_to_try:
+            used_model = model
+            try:
+                response = self._client.post(f"models/{model}:generateContent", json=body)
+                if response.status_code == 200:
+                    break
+                logger.warning("Gemini request to %s failed: HTTP %d (%s)", model, response.status_code, response.text[:200])
+                if response.status_code in (401, 403):
+                    raise GenAIError("Gemini rejected the API key or access. Check the server configuration.", 503)
+                if response.status_code == 429:
+                    raise GenAIError("Gemini quota or rate limit reached. Check the API quota and try later.", 503)
+                if response.status_code in (400, 404):
+                    raise GenAIError("Gemini rejected the configuration. Check the API key, model and region.", 503)
+                last_error = GenAIError("Gemini service returned an error. Try again later.")
+            except httpx.TimeoutException:
+                logger.warning("Gemini request to %s timed out, trying fallback if available...", model)
+                last_error = GenAIError("Gemini request timed out. Try again or use a local mode.", 504)
+            except httpx.RequestError:
+                last_error = GenAIError("Could not connect to Gemini. Check the server network connection.")
+
+        if response is None or response.status_code != 200:
+            if last_error:
+                raise last_error
             raise GenAIError("Gemini service returned an error. Try again later.")
+
         try:
             payload = response.json()
         except ValueError:
             raise GenAIError("Gemini returned an invalid response.") from None
         angle = parse_rotation(payload)
         logger.info("[pipeline=genai model=%s decision=gemini] correction_cw=%d",
-                    self.model_version, angle)
-        return PredictionResult((-angle) % 360, angle, None, mode, self.model_version,
-                                "gemini", confidence_source="not-provided")
+                    used_model, angle)
+        return PredictionResult(
+            predicted_orientation=(-angle) % 360,
+            correction_rotation=angle,
+            confidence=None,
+            mode=mode,
+            model_version=used_model,
+            decision_source="gemini",
+            cnn_confidence=0.0,
+            confidence_source="not-provided",
+            needs_review=False,
+        )
 
     def close(self):
         self._client.close()
