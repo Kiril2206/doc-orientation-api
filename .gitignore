@@ -29,6 +29,7 @@ training/output/
 output/v2*/
 *.pth
 *.onnx
+!model/*.onnx
 !model/.gitkeep
 
 # Data

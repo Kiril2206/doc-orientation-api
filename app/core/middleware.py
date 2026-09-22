@@ -53,14 +53,22 @@ class DemoMiddleware:
                 status = message["status"]
                 headers = list(message.get("headers", []))
                 headers = [(k, v) for k, v in headers if k.lower() != b"x-request-id"]
+                if scope["path"] in ("/docs", "/redoc", "/openapi.json"):
+                    csp = (b"default-src 'self'; "
+                           b"script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+                           b"style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+                           b"img-src 'self' blob: data: https://fastapi.tiangolo.com; "
+                           b"frame-ancestors 'none'")
+                else:
+                    csp = (b"default-src 'self'; script-src 'self'; "
+                           b"style-src 'self'; img-src 'self' blob:; frame-src blob:; "
+                           b"object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")
                 headers.extend([
                     (b"x-request-id", request_id.encode()),
                     (b"x-content-type-options", b"nosniff"),
                     (b"cache-control", b"no-store"),
                     (b"referrer-policy", b"no-referrer"),
-                    (b"content-security-policy", b"default-src 'self'; script-src 'self'; "
-                     b"style-src 'self'; img-src 'self' blob:; frame-src blob:; "
-                     b"object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"),
+                    (b"content-security-policy", csp),
                 ])
                 message = {**message, "headers": headers}
             await send(message)
