@@ -1,49 +1,110 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Document Orientation ? Demo</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Document Orientation &bull; Demo</title>
   <link rel="stylesheet" href="/static/style.css">
   <script src="/static/app.js" defer></script>
 </head>
 <body>
 <main>
-  <header><div><p class="eyebrow">COMPUTER VISION / INTERVIEW DEMO</p>
-    <h1>Put documents the right way up.</h1>
-    <p class="intro">Compare a local neural model, text verification, and Gemini. Upload a document and inspect each page?s correction.</p>
-  </div><a href="/docs" target="_blank" rel="noopener">API reference ?</a></header>
+  <header>
+    <div>
+      <p class="eyebrow">COMPUTER VISION / INTERVIEW DEMO</p>
+      <h1>Put documents the right way up.</h1>
+      <p class="intro">Compare a local neural model, text verification, and Gemini. Upload a document and inspect each page's correction.</p>
+    </div>
+    <a href="/docs" target="_blank" rel="noopener">API reference &rarr;</a>
+  </header>
+
   <section class="card" aria-label="Document correction">
     <form id="form">
-      <fieldset id="modes"><legend>1. Choose a pipeline</legend>
-        <label class="mode"><input type="radio" name="mode" value="pure" checked><strong>Pure CV <small>v2</small></strong><span>EfficientNet-B0 ? local ? no OCR</span></label>
-        <label class="mode"><input type="radio" name="mode" value="hybrid"><strong>Hybrid <small>v1 + OCR</small></strong><span>ResNet-18 ? conditional text verification</span></label>
-        <label class="mode"><input type="radio" name="mode" value="genai"><strong>Gemini <small>experimental</small></strong><span>Remote vision model ? no local training</span></label>
+      <fieldset id="modes">
+        <legend>1. Choose a pipeline</legend>
+        <label class="mode">
+          <input type="radio" name="mode" value="pure" checked>
+          <strong>Pure CV <small>v2</small></strong>
+          <span>EfficientNet-B0 &bull; local &bull; no OCR</span>
+        </label>
+        <label class="mode">
+          <input type="radio" name="mode" value="hybrid">
+          <strong>Hybrid <small>v1 + OCR</small></strong>
+          <span>ResNet-18 &bull; conditional text verification</span>
+        </label>
+        <label class="mode">
+          <input type="radio" name="mode" value="genai">
+          <strong>Gemini <small>experimental</small></strong>
+          <span>Remote vision model &bull; no local training</span>
+        </label>
       </fieldset>
-      <p id="modeStatus" role="status">Checking model availability?</p>
-      <div id="remoteOptions" hidden><p class="notice">This mode sends page previews to Google Gemini and uses API quota. Use fictional or public documents for this demo.</p>
-        <label for="context">Optional document context</label><textarea id="context" maxlength="2000" rows="2" placeholder="For example: use the main paragraph, not the circular stamp."></textarea>
+      <p id="modeStatus" role="status">Checking model availability...</p>
+
+      <div id="remoteOptions" hidden>
+        <p class="notice">This mode sends page previews to Google Gemini and uses API quota. Use fictional or public documents for this demo.</p>
+        <label for="context">Optional document context</label>
+        <textarea id="context" maxlength="2000" rows="2" placeholder="For example: use the main paragraph, not the circular stamp."></textarea>
       </div>
+
       <label class="file-label" for="file">2. Choose a document</label>
       <input id="file" type="file" accept=".jpg,.jpeg,.png,.webp,.tiff,.tif,.bmp,.pdf">
-      <p id="limits" class="muted">Up to 10 MiB ? single-frame images or PDF ? quarter-turns only</p>
+      <p id="limits" class="muted">Up to 10 MiB &bull; single-frame images or PDF &bull; quarter-turns only</p>
+
       <p class="samples">Try a fictional sample:
         <button type="button" data-sample="invoice_90.png">Sideways invoice</button>
         <button type="button" data-sample="mixed_rotations.pdf">Four-page PDF</button>
         <button type="button" data-sample="blank.png">Blank page</button>
       </p>
-      <div class="actions"><button id="submit" type="submit" disabled>Correct orientation</button><button id="cancel" type="button" hidden>Cancel request</button><span id="selectedName" class="muted"></span></div>
+
+      <div class="actions">
+        <button id="submit" type="submit" disabled>Correct orientation</button>
+        <button id="cancel" type="button" hidden>Cancel request</button>
+        <span id="selectedName" class="muted"></span>
+      </div>
     </form>
     <p id="status" role="status" aria-live="polite"></p>
     <p id="error" role="alert" hidden></p>
   </section>
+
   <section id="result" hidden aria-label="Correction result">
-    <div class="result-head"><div><h2>Correction result</h2><p id="summary"></p></div><a id="download" class="button" download>Download result</a></div>
+    <div class="result-head">
+      <div>
+        <h2>Correction result</h2>
+        <p id="summary"></p>
+      </div>
+      <a id="download" class="button" download>Download result</a>
+    </div>
     <p id="reviewNotice" class="notice" hidden>Some pages need review and were left unchanged. Check the page results before using the document.</p>
-    <div class="previews"><section class="card"><h3>Original</h3><div id="originalPreview"></div></section><section class="card"><h3>Result</h3><div id="resultPreview"></div></section></div>
-    <div class="card table-wrap"><table><caption>Page decisions ? rotations are clockwise</caption><thead><tr><th>Page</th><th>Correction</th><th>CNN score</th><th>Decision</th><th>Review</th></tr></thead><tbody id="pages"></tbody></table></div>
+    <div class="previews">
+      <section class="card">
+        <h3>Original</h3>
+        <div id="originalPreview"></div>
+      </section>
+      <section class="card">
+        <h3>Result</h3>
+        <div id="resultPreview"></div>
+      </section>
+    </div>
+    <div class="card table-wrap">
+      <table>
+        <caption>Page decisions &bull; rotations are clockwise</caption>
+        <thead>
+          <tr>
+            <th>Page</th>
+            <th>Correction</th>
+            <th>CNN score</th>
+            <th>Decision</th>
+            <th>Review</th>
+          </tr>
+        </thead>
+        <tbody id="pages"></tbody>
+      </table>
+    </div>
     <p class="muted">CNN scores are uncalibrated model outputs, not guarantees. Blank and low-confidence pages stay unchanged. Gemini does not supply a probability score.</p>
     <p id="requestId" class="muted"></p>
   </section>
-  <footer>Images retain their resolution. PDFs retain text and vector content. JPEG/WebP are re-encoded; digital signatures and original metadata are not guaranteed. This demo corrects 90? turns, not skew or perspective.</footer>
+
+  <footer>Images retain their resolution. PDFs retain text and vector content. JPEG/WebP are re-encoded; digital signatures and original metadata are not guaranteed. This demo corrects 90&deg; turns, not skew or perspective.</footer>
 </main>
-</body></html>
+</body>
+</html>

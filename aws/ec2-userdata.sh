@@ -45,6 +45,7 @@ WorkingDirectory=/opt/app
 ExecStart=/opt/app/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 80 --workers 1
 Restart=always
 RestartSec=5
+EnvironmentFile=-/opt/app/.env
 Environment=APP_HOST=0.0.0.0
 Environment=APP_PORT=80
 Environment=APP_INFERENCE_MODE=pure
